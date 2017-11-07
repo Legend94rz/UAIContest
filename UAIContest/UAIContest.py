@@ -21,7 +21,7 @@ def analysis(trainSet,testSet):
     p=[]
     for i in range(len(testSet)):
         if i%500==0:
-            print('%s: %d'%(dt.datetime.now(), x))
+            print('%s: %d'%(dt.datetime.now(), i))
         x = testSet.iloc[i]
         startId = x['start_geo_id']
         endId = x['end_geo_id']
