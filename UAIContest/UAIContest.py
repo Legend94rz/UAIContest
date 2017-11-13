@@ -21,23 +21,25 @@ def analysis(trainSet,testSet):
     p=[]
     for i in range(len(testSet)):
         if i%500==0:
-            print('%r: %d'%(dt.datetime.now(), x))
+            print('%s: %d'%(dt.datetime.now(), i))
         x = testSet.iloc[i]
         startId = x['start_geo_id']
         endId = x['end_geo_id']
         date = x['create_date']
-        hour = x['create_hour']
-        #dt.datetime.strptime(str,'%Y-%m-%d')
-        #x.replace(hour=9)
-        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId)]\
+        hur = x['create_hour']
+        #Date = dt.datetime.strptime(date,'%Y-%m-%d')
+        #Date.replace(hour=int(hur))
+        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) & (trainSet['create_date']==date)]\
               .sort_values(['create_date','create_hour'])
         s = 0
-        if(hour>0):
-            s = s + tmp[tmp['create_hour']==hour-1].shape[0]
-        if(hour<23):
-            s = s + tmp[tmp['create_hour']==hour+1].shape[0]
-        if(hour>0 and hour<23):
+        if(hur>0):
+            s = s + tmp[tmp['create_hour']==hur-1].shape[0]
+        if(hur<23):
+            s = s + tmp[tmp['create_hour']==hur+1].shape[0]
+        if(hur>0 and hur<23):
             s = s/2.0;
+        if s==0.5:
+            s=1
         p.append(s)
     result['count']=p
     result.to_csv('prediction.csv',encoding='utf-8',index = False)
