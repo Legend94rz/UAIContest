@@ -51,15 +51,30 @@ def GenResult(trainJuly,trainAug,testSet):
         x = testSet.iloc[i]
         startId = x['start_geo_id']
         endId = x['end_geo_id']
-        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) & (trainSet['create_hour']==int(x['create_hour'])) ]\
-              .groupby('create_date').size().reset_index(name='count')
-        if len(tmp['count']<50)>0:
-            q = tmp[tmp['count']<50].mean().item()
+        hur = int(x['create_hour'])
+        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) ]\
+              .groupby(['create_date','create_hour']).size().reset_index(name='count')
+        q=0
+        w=0
+        if len( tmp[(tmp['count']<50) & (tmp['create_hour']==hur)] )>0:
+            q = tmp[(tmp['count']<50) & (tmp['create_hour']==hur)]['count'].mean()
             if q<3:
-                q = tmp[tmp['count']<50]['count'].mode().mean()
-        else:
-            q=0
-        p.append( q )
+                q = tmp[(tmp['count']<50) & (tmp['create_hour']==hur)]['count'].mode().mean()
+        if hur<23:
+            try:
+                w = w+tmp[(tmp['create_date']==x['create_date']) & (tmp['create_hour']==hur+1)]['count'].item()
+            except :
+                pass
+        if hur>0:
+            try:
+                w = w+tmp[(tmp['create_date']==x['create_date']) & (tmp['create_hour']==hur-1)]['count'].item()
+            except :
+                pass
+        if hur<23 and hur>0:
+            w = w/2.0
+        if w==0.5:
+            w=1
+        p.append( 0.6*q+0.4*w )
 
     result['count']=p
     result.to_csv('prediction.csv',index=False)
