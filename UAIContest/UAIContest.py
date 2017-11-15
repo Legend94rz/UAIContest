@@ -1,86 +1,117 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import datetime as dt
+import numpy as np
+import pickle
+from sklearn.svm import SVR
+
 
 #plot A->B orders count by time
 trainPath1 = '.\\Data\\train_July.csv'
 trainPath2 = '.\\Data\\train_Aug.csv'
 testPath = '.\\Data\\test_id_Aug_agg_public5k.csv'
 
+trainJuly = pd.DataFrame()
+trainAug = pd.DataFrame()
+trainSet = pd.DataFrame()
+
+
 def ReadTrain():
-    train1 = pd.read_csv(trainPath1)
-    train2 = pd.read_csv(trainPath2)
-    return train1,train2
+    global trainJuly, trainAug, trainSet
+    trainJuly = pd.read_csv(trainPath1)
+    trainAug = pd.read_csv(trainPath2)
+    trainSet = pd.concat([trainJuly,trainAug])
+    return trainJuly,trainAug
 
 def ReadTest():
     return pd.read_csv(testPath)
 
+def GetCurrentDateStat(trainSet, startGeo,endGeo,days):
+    date = dt.datetime(2017,7,1) + dt.timedelta(days)
+    tmp = trainSet[ (trainSet['start_geo_id']==startGeo) & (trainSet['end_geo_id']==endGeo) & (trainSet['create_date']==date.strftime('%Y-%m-%d')) ]\
+            .groupby('create_hour').size().reset_index(name='count')
+    return tmp
 
-def analysis(trainJuly,trainAug,testSet):
-    trainSet = pd.concat([trainJuly,trainAug])
-    result = pd.DataFrame()
-    result['test_id'] = testSet['test_id']
-    p=[]
-    for i in range(len(testSet)):
-        if i%500==0:
-            print('%s: %d'%(dt.datetime.now(), i))
+def GetHistoryMean(trainSet,startGeo,endGeo):
+    tmp = trainSet[(trainSet['start_geo_id']==startGeo) & (trainSet['end_geo_id']==endGeo) ]\
+        .groupby(['create_date','create_hour']).size().reset_index(name='count')
+    return tmp.groupby('create_hour').mean()
+    
+def deal(trainSet,testSet):
+    trainSet = trainSet[['start_geo_id','end_geo_id','create_date','create_hour']]
+
+    #####Gen All Training Set and Train:
+    X = []
+    Y = []
+    for d in range(31):
+        print('%s:  at day %d\n'%(dt.datetime.now(),d))
+        for i in range(50):
+        #for i in range(len(testSet)):
+            print('%s: day %d, gening %d\n'%(dt.datetime.now(),d,i))
+            x = testSet.iloc[i]
+            cur = np.zeros(12)
+            #todo : modify these start point and end point
+            f = GetCurrentDateStat(trainSet,x['start_geo_id'],x['end_geo_id'],d)
+            hur = x['create_hour']
+            for j in range(len(f)):
+                if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
+                    cur[f.iloc[j]['create_hour']/2] = f.iloc[j]['count']
+
+            if x['create_hour']%2==0:
+                p=(x['create_hour']-1)/2
+            else:
+                p=x['create_hour']/2
+            cur = np.roll(cur,5-p)
+            #todo : the same as above
+            his = GetHistoryMean(trainSet, x['start_geo_id'],x['end_geo_id'])
+            q=list(his['count'])
+            q.extend(cur)
+            X.append(q)
+            if len(f[f['create_hour']==hur])>0:
+                Y.append(f[f['create_hour']==hur]['count'].item())
+            else:
+                Y.append(0)
+    pickle.dump({'X':X,'Y':Y},open('train.pkl','w'))
+
+    #todo: split validation and train set:
+    svr = SVR('linear')
+    svr.fit(X,Y)
+    print("train over, score: %.5lf\n"%(svr.score(X,Y)))
+    
+    ###Gen All Test set and Gen Result:
+    TX = []
+    print('%s:  gen test set...\n')
+    for i in range(50):
+        print('%s: gening %d\n'%(dt.datetime.now(),i))
         x = testSet.iloc[i]
-        startId = x['start_geo_id']
-        endId = x['end_geo_id']
-        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) ]\
-              .groupby(['create_date','create_hour']).size().reset_index(name='count')
-        X = range(24*38)
-        Y = [0 for j in range(24*38)]
-        for j in range(tmp.shape[0]):
-            date = dt.datetime.strptime(tmp['create_date'][j],'%Y-%m-%d')
-            date = date.replace(hour=int(tmp['create_hour'][j]))
-            delta = date-dt.datetime(2017,7,1,0)
-            Y[ delta.days*24 + int(delta.seconds/3600)  ] = tmp['count'][j]
+        cur = np.zeros(12)
+        f = GetCurrentDateStat(trainSet,x['start_geo_id'],x['end_geo_id'],d)
+        hur = x['create_hour']
+        for j in range(len(f)):
+            if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
+                cur[f.iloc[j]['create_hour']/2] = f.iloc[j]['count']
         
-        plt.plot(X,Y)
-        plt.show()
+        if x['create_hour']%2==0:
+            p=(x['create_hour']-1)/2
+        else:
+            p=x['create_hour']/2
+        cur = np.roll(cur,5-p)
+        his = GetHistoryMean(trainSet, x['start_geo_id'],x['end_geo_id'])
+        his.extend(cur)
+        q=lsit(his['count'])
+        q.extend(cur)
+        TX.append(q)
+    pickle.dump({'X':TX},open('test.pkl','w'))
+    YP = svr.predict(TX)
 
-def GenResult(trainJuly,trainAug,testSet):
-    trainSet = pd.concat([trainJuly,trainAug])
+    #Gen Result:
     result = pd.DataFrame()
-    result['test_id'] = testSet['test_id']
-    p=[]
-    for i in range(len(testSet)):
-        if i%500==0:
-            print('%s: %d'%(dt.datetime.now(), i))
-        x = testSet.iloc[i]
-        startId = x['start_geo_id']
-        endId = x['end_geo_id']
-        hur = int(x['create_hour'])
-        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) ]\
-              .groupby(['create_date','create_hour']).size().reset_index(name='count')
-        q=0
-        w=0
-        if len( tmp[(tmp['count']<50) & (tmp['create_hour']==hur)] )>0:
-            q = tmp[(tmp['count']<50) & (tmp['create_hour']==hur)]['count'].mean()
-            if q<3:
-                q = tmp[(tmp['count']<50) & (tmp['create_hour']==hur)]['count'].mode().mean()
-        if hur<23:
-            try:
-                w = w+tmp[(tmp['create_date']==x['create_date']) & (tmp['create_hour']==hur+1)]['count'].item()
-            except :
-                pass
-        if hur>0:
-            try:
-                w = w+tmp[(tmp['create_date']==x['create_date']) & (tmp['create_hour']==hur-1)]['count'].item()
-            except :
-                pass
-        if hur<23 and hur>0:
-            w = w/2.0
-        if w==0.5:
-            w=1
-        p.append( 0.6*q+0.4*w )
+    result['test_id'] = range(5000)
+    result['count']=YP
+    result.to_csv('prediction2.csv',index=False,encoding='utf-8')
 
-    result['count']=p
-    result.to_csv('prediction.csv',index=False)
 
 if __name__=="__main__":
     trainJuly,trainAug = ReadTrain()
     testSet = ReadTest()
-    #analysis(trainJuly,trainAug,testSet)
-    GenResult(trainJuly,trainAug,testSet)
+    deal(trainSet,testSet)
