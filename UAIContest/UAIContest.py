@@ -35,19 +35,19 @@ def GetCurrentDateStat(trainSet, startGeo,endGeo,days):
 def GetHistoryMean(trainSet,startGeo,endGeo):
     tmp = trainSet[(trainSet['start_geo_id']==startGeo) & (trainSet['end_geo_id']==endGeo) ]\
         .groupby(['create_date','create_hour']).size().reset_index(name='count')
-    return tmp.groupby('create_hour').mean()
+    return tmp.groupby('create_hour').mean().reset_index()
     
 def deal(trainSet,testSet):
     trainSet = trainSet[['start_geo_id','end_geo_id','create_date','create_hour']]
-
     #####Gen All Training Set and Train:
     X = []
     Y = []
     for d in range(31):
         print('%s:  at day %d\n'%(dt.datetime.now(),d))
-        for i in range(50):
-        #for i in range(len(testSet)):
-            print('%s: day %d, gening %d\n'%(dt.datetime.now(),d,i))
+        #for i in range(5000):
+        for i in range(len(testSet)):
+            if i%100==0:
+                print('%s: day %d, gening %d\n'%(dt.datetime.now(),d,i))
             x = testSet.iloc[i]
             cur = np.zeros(12)
             #todo : modify these start point and end point
@@ -64,28 +64,34 @@ def deal(trainSet,testSet):
             cur = np.roll(cur,5-p)
             #todo : the same as above
             his = GetHistoryMean(trainSet, x['start_geo_id'],x['end_geo_id'])
-            q=list(his['count'])
+            q=np.zeros(24)
+            for j in range(len(his)):
+                q[ int(his.iloc[j]['create_hour']) ]=his.iloc[j]['count']
+            q=list(np.roll(q,11-x['create_hour']))
             q.extend(cur)
             X.append(q)
             if len(f[f['create_hour']==hur])>0:
                 Y.append(f[f['create_hour']==hur]['count'].item())
             else:
                 Y.append(0)
-    pickle.dump({'X':X,'Y':Y},open('train.pkl','w'))
-
+    pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
+    #dic = pickle.load(open('train.pkl','rb'))
     #todo: split validation and train set:
     svr = SVR('linear')
-    svr.fit(X,Y)
-    print("train over, score: %.5lf\n"%(svr.score(X,Y)))
+    print("training...\n")
+    svr.fit( X ,Y)
+    print("train over, score: %.5lf\n"%(svr.score(np.array(X),np.array(Y).reshape((-1,1)))))
     
     ###Gen All Test set and Gen Result:
     TX = []
-    print('%s:  gen test set...\n')
-    for i in range(50):
-        print('%s: gening %d\n'%(dt.datetime.now(),i))
+    print('%s:  gen test set...\n'%dt.datetime.now())
+    for i in range(5000):
+        if i%100==0:
+            print('%s:  gen %d\n'%(dt.datetime.now(),i))
         x = testSet.iloc[i]
         cur = np.zeros(12)
-        f = GetCurrentDateStat(trainSet,x['start_geo_id'],x['end_geo_id'],d)
+        days = (dt.datetime.strptime(x['create_date'],'%Y-%m-%d')-dt.datetime(2017,7,1)).days
+        f = GetCurrentDateStat(trainSet,x['start_geo_id'],x['end_geo_id'],days)
         hur = x['create_hour']
         for j in range(len(f)):
             if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
@@ -97,12 +103,15 @@ def deal(trainSet,testSet):
             p=x['create_hour']/2
         cur = np.roll(cur,5-p)
         his = GetHistoryMean(trainSet, x['start_geo_id'],x['end_geo_id'])
-        his.extend(cur)
-        q=lsit(his['count'])
+        q=np.zeros(24)
+        for j in range(len(his)):
+            q[ int(his.iloc[j]['create_hour']) ]=his.iloc[j]['count']
+        q=list(np.roll(q,11-x['create_hour']))
         q.extend(cur)
         TX.append(q)
-    pickle.dump({'X':TX},open('test.pkl','w'))
+    pickle.dump({'X':TX},open('test.pkl','wb'))
     YP = svr.predict(TX)
+    YP[YP<0]=0
 
     #Gen Result:
     result = pd.DataFrame()
