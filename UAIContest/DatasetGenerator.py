@@ -4,6 +4,7 @@ from pandas.io import sql
 import subprocess
 import datetime as dt
 import numpy as np
+import pickle
 
 class DatasetGenerator(object):
     """description of class"""
@@ -20,7 +21,6 @@ class DatasetGenerator(object):
         b = self.GetHistoryMean('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2')
         l=[]
 
-
     def GetCurrentDateStat(self, startGeo, endGeo, date):
         c = self.con.cursor()
         res = c.execute("select create_hour,count(1) from train_ori where start_geo_id=? and end_geo_id=? and create_date=? group by create_hour order by create_hour",(startGeo,endGeo,date))
@@ -28,11 +28,15 @@ class DatasetGenerator(object):
 
     def GetHistoryMean(self,startGeo,endGeo):
         c = self.con.cursor()
-        res = c.execute("select create_hour, avg(cnt) from (select create_date,create_hour,count(1) as cnt from train_ori where start_geo_id=? and end_geo_id=? group by create_date,create_hour) group by create_hour order by create_hour",(startGeo,endGeo))
+        res = c.execute("select create_hour, avg(cnt) from (select create_date,create_hour,count(1) as cnt from train_ori where start_geo_id=? and end_geo_id=? group by create_date,create_hour) where cnt<=100 group by create_hour order by create_hour",(startGeo,endGeo))
         return res
 
-
     def GenTrainingSet(self):
+        try:
+            dic = pickle.load(open('train.pkl','rb'))
+            return dic['X'],dic['Y']
+        except IOError:
+            pass
         X = []
         Y = []
         dates = [ (dt.datetime(2017,7,1)+dt.timedelta(i)).strftime('%Y-%m-%d') for i in range(31) ]
@@ -41,41 +45,74 @@ class DatasetGenerator(object):
             for i in range(len(self.augset)):
                 if i%100==0:
                     print('%s: day %s, gening %d\n'%(dt.datetime.now(),d,i))
-                x = testSet.iloc[i]
+                x = self.augset.iloc[i]
+                start = x['start_geo_id']
+                end = x['end_geo_id']
                 cur = np.zeros(12)
                 #todo : modify these start point and end point
-                f = self.GetCurrentDateStat(x['start_geo_id'],x['end_geo_id'],d)
+                f = self.GetCurrentDateStat(start,end,d)
                 hur = x['create_hour']
+                y=0
                 for row in f:
                     if (hur%2==0 and row[0]%2!=0) or (hur%2!=0 and row[0]%2==0):
                         cur[row[0]/2] = row[1]
+                    if row[0]==hur:
+                        y=row[1]
 
-                #for j in range(len(f)):
-                #    if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
-                #        cur[f.iloc[j]['create_hour']/2] = f.iloc[j]['count']
-
-                if x['create_hour']%2==0:
-                    p=(x['create_hour']-1)/2
+                if hur%2==0:
+                    p=(hur-1)/2
                 else:
-                    p=x['create_hour']/2
+                    p=hur/2
                 cur = np.roll(cur,5-p)
                 #todo : the same as above
-                his = self.GetHistoryMean(x['start_geo_id'],x['end_geo_id'])
+                his = self.GetHistoryMean(start,end)
                 q=np.zeros(24)
                 for row in his:
                     q[ int( row[0] )] = row[1]
 
-
-                #for j in range(len(his)):
-                #    q[ int(his.iloc[j]['create_hour']) ]=his.iloc[j]['count']
-                q=list(np.roll(q,11-x['create_hour']))
+                q=list(np.roll(q,11-hur))
                 q.extend(cur)
                 X.append(q)
-                if len(f[f['create_hour']==hur])>0:
-                    Y.append(f[f['create_hour']==hur]['count'].item())
-                else:
-                    Y.append(0)
+                Y.append(y)
+        pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
         return X,Y
 
     def GenTestSet(self):
-        pass
+        try:
+            tdic = pickle.load(open('test.pkl','rb'))
+            return tdic['X']
+        except IOError:
+            pass
+        X = []
+        for i in range(len(self.augset)):
+            x = self.augset.iloc[i]
+            start = x['start_geo_id']
+            end = x['end_geo_id']
+            d = x['create_date']
+            if i%100==0:
+                print('%s: day %s, gening %d\n'%(dt.datetime.now(),d,i))
+            cur = np.zeros(12)
+            #todo : modify these start point and end point
+            f = self.GetCurrentDateStat(start,end,d)
+            hur = x['create_hour']
+            for row in f:
+                if (hur%2==0 and row[0]%2!=0) or (hur%2!=0 and row[0]%2==0):
+                    cur[row[0]/2] = row[1]
+
+            if hur%2==0:
+                p=(hur-1)/2
+            else:
+                p=hur/2
+            cur = np.roll(cur,5-p)
+            #todo : the same as above
+            his = self.GetHistoryMean(start,end)
+            q=np.zeros(24)
+            for row in his:
+                q[ int( row[0] )] = row[1]
+
+            q=list(np.roll(q,11-hur))
+            q.extend(cur)
+            X.append(q)
+        pickle.dump({'X':X},open('test.pkl','wb'))
+        return X
+

@@ -2,7 +2,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime as dt
 import numpy as np
-import pickle
 from sklearn.svm import SVR
 from sklearn.linear_model import SGDRegressor
 import xgboost
@@ -138,4 +137,5 @@ if __name__=="__main__":
     #testSet = ReadTest()
     #deal(trainSet,testSet)
     dg = DatasetGenerator(trainPath1,trainPath2)
-    dg.dummy()
+    X,Y = dg.GenTrainingSet()
+    TX  = dg.GenTestSet()
