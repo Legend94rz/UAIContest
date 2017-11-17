@@ -21,7 +21,14 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="songyu\plotFunction.py" />
+    <Compile Include="songyu\UAIContest.py" />
+    <Compile Include="songyu\UAIGetFeature.py" />
+    <Compile Include="songyu\UAIModel.py" />
     <Compile Include="UAIContest.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="songyu\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
