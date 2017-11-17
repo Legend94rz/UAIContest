@@ -55,14 +55,14 @@ class DatasetGenerator(object):
                 y=0
                 for row in f:
                     if (hur%2==0 and row[0]%2!=0) or (hur%2!=0 and row[0]%2==0):
-                        cur[row[0]/2] = row[1]
+                        cur[row[0]//2] = row[1]
                     if row[0]==hur:
                         y=row[1]
 
                 if hur%2==0:
-                    p=(hur-1)/2
+                    p=(hur-1)//2
                 else:
-                    p=hur/2
+                    p=hur//2
                 cur = np.roll(cur,5-p)
                 #todo : the same as above
                 his = self.GetHistoryMean(start,end)
@@ -97,12 +97,12 @@ class DatasetGenerator(object):
             hur = x['create_hour']
             for row in f:
                 if (hur%2==0 and row[0]%2!=0) or (hur%2!=0 and row[0]%2==0):
-                    cur[row[0]/2] = row[1]
+                    cur[row[0]//2] = row[1]
 
             if hur%2==0:
-                p=(hur-1)/2
+                p=(hur-1)//2
             else:
-                p=hur/2
+                p=hur//2
             cur = np.roll(cur,5-p)
             #todo : the same as above
             his = self.GetHistoryMean(start,end)
