@@ -8,9 +8,10 @@ import pickle
 
 class DatasetGenerator(object):
     """description of class"""
-    def __init__(self, train_july, train_aug):
+    def __init__(self, train_july, train_aug,testFile):
         self.julyset = pd.read_csv(train_july)
         self.augset = pd.read_csv(train_aug)
+        self.testset = pd.read_csv(testFile)
 
         df = pd.concat([self.julyset, self.augset])
         self.con = sqlite3.connect(':memory:')
@@ -42,10 +43,10 @@ class DatasetGenerator(object):
         dates = [ (dt.datetime(2017,7,1)+dt.timedelta(i)).strftime('%Y-%m-%d') for i in range(31) ]
         for d in dates:
             print('%s:  at day %s\n'%(dt.datetime.now(),d))
-            for i in range(len(self.augset)):
+            for i in range(len(self.testset)):
                 if i%100==0:
                     print('%s: day %s, gening %d\n'%(dt.datetime.now(),d,i))
-                x = self.augset.iloc[i]
+                x = self.testset.iloc[i]
                 start = x['start_geo_id']
                 end = x['end_geo_id']
                 cur = np.zeros(12)
@@ -84,8 +85,8 @@ class DatasetGenerator(object):
         except IOError:
             pass
         X = []
-        for i in range(len(self.augset)):
-            x = self.augset.iloc[i]
+        for i in range(len(self.testset)):
+            x = self.testset.iloc[i]
             start = x['start_geo_id']
             end = x['end_geo_id']
             d = x['create_date']
