@@ -39,7 +39,7 @@ def Myxgb(train,y_label,validate,validate_label,test):
             'min_child_weight':1,
             'nthread':2
             }
-     num_round =60
+     num_round =100
      num_boost =100 #for cv
      num_fold = 5
      evallist  = [(dtrain,'train'),(dvalidate,'validate')] 
@@ -60,6 +60,7 @@ def generateTest(trainSet,testSet):
     poiFeature=UF.getPoiFeature()   # id
     weatherFeature=UF.getWeatherFeature() # 0-37 + 0-23
     dateFeature=UF.getDateFeature() # 0-37
+    avg=pd.read_csv('./31.csv')
     
     dateIndex=testSet['create_date'].unique()
     
@@ -79,10 +80,15 @@ def generateTest(trainSet,testSet):
         date = x['create_date']
         
         i=list(dateIndex).index(date)+31
+        dateHour = pd.read_csv('./getAvgHourFeature/'+str(i)+'.csv')
         
-        print (i)
+        
+        
+        #print (i)
         
         tmpLabel = label.iloc[j,i+1]
+        
+        '''
         if startId in poiFeature.keys():
             sample.append(1)
             sample.extend(poiFeature[startId])
@@ -96,7 +102,15 @@ def generateTest(trainSet,testSet):
         else:
             tmpPos=[x*0 for x in range(12)]
             sample.extend(tmpPos)
+        '''    
+        s = [0,0]
+        if hour>0 :
+            s[1] = dateHour.iloc[j,hour-1]
+        if hour<23:
+            s[0] = dateHour.iloc[j,hour+1]
             
+        sample.extend(s)
+        sample.extend(avg.iloc[j].tolist())
         sample.extend(dateFeature[i])
         sample.extend(weatherFeature[str(i)+'-'+str(hour)])
         sample.append((tmpLabel))
@@ -113,7 +127,7 @@ def generateTrain(trainSet,testSet):
     poiFeature=UF.getPoiFeature()   # id
     weatherFeature=UF.getWeatherFeature() # 0-37 + 0-23
     dateFeature=UF.getDateFeature() # 0-37
-    
+    avg=pd.read_csv('./31.csv')
     dateIndex=trainSet['create_date'].unique()
     dir= './TrainDataForModel/'
     if not os.path.exists(dir):
@@ -121,15 +135,18 @@ def generateTrain(trainSet,testSet):
         print(dir)
       
     for i in range(len(dateIndex)):
-        #print(i)
+        print(i)
         p=[]
         for j in range(len(testSet)):
             sample=[]
             x = testSet.iloc[j]
+            dateHour = pd.read_csv('./getAvgHourFeature/'+str(i)+'.csv')
             startId = x['start_geo_id']
             endId = x['end_geo_id']
             hour = x['create_hour']
             tmpLabel = label.iloc[j,i+1]
+            
+            '''
             if startId in poiFeature.keys():
                 sample.append(1)
                 sample.extend(poiFeature[startId])
@@ -145,7 +162,15 @@ def generateTrain(trainSet,testSet):
                 print (i,j)
                 tmpPos=[x*0 for x in range(12)]
                 sample.extend(tmpPos)
-                
+            ''' 
+            s = [0,0]
+            if hour>0 :
+                s[1] = dateHour.iloc[j,hour-1]
+            if hour<23:
+                s[0] = dateHour.iloc[j,hour+1]
+            
+            sample.extend(s)
+            sample.extend(avg.iloc[j].tolist())
             sample.extend(dateFeature[i])
             sample.extend(weatherFeature[str(i)+'-'+str(hour)])
             sample.append((tmpLabel))
@@ -180,18 +205,21 @@ if __name__=="__main__":
     
     trainSet = UC.ReadTrain()
     dfTest = UC.ReadTest()
-    '''
-    generateTrain(trainSet,dfTest)
     
-    '''
-    Train= getTrain(0,20)
+    
+    generateTrain(trainSet,dfTest)
+    generateTest(trainSet,dfTest)
+    
+   
+    
+    Train= getTrain(0,30)
     Validate = getTrain(21,30)
     Test = getTest()
 
     bst,result=Myxgb(Train[:,:-1],Train[:,-1],Validate[:,:-1],Validate[:,-1],Test[:,:-1])
     
     result = np.maximum(result,0)
-    result = np.around(result)
+    #result = np.around(result)
     
     df = pd.DataFrame()
     df['test_id'] = dfTest["test_id"].values.tolist()
@@ -199,3 +227,4 @@ if __name__=="__main__":
     df.to_csv('./xgbmodel/prediction.csv',encoding='utf-8',index = False)
     
     #featureEvalution(bst,feats)
+  

@@ -42,6 +42,9 @@ def getMean():
 
 def ReadTrain():
     train1 = pd.read_csv(trainPath1)
+    
+    #print (train1.describe())
+    
     train2 = pd.read_csv(trainPath2)
     return pd.concat([train1,train2])
 
@@ -154,30 +157,29 @@ def getAverage(NumofDays,LastDay):
     if not os.path.exists(dir):
         os.makedirs(dir)
         print(dir)
-    result['count']=tmpstd
+    result['count']=tmpmean
     #result['count']=tmp.apply(np.round)
     result.to_csv(dir+str(NumofDays)+'_'+str(LastDay)+'.csv',encoding='utf-8',index = False)
     
     return tmpstd.tolist(),tmpmean.tolist()
     
-def getAverageWithnormal(NumofDays,LastDay,BadDays):
+def getAverageWithnormal(testSet):
     # BadDays*2 < NumofDays      LasyDay+1>NumofDays
-    train=pd.read_csv(SplitedTrainData)
-    
+    avg=pd.read_csv('./31.csv')
     result = pd.DataFrame()
-    result['test_id'] = train['test_id']
-    tmp=train.iloc[:,LastDay+1-NumofDays:LastDay+1]
+    result['test_id'] = range(5000)
     p=[]
-    for i in range(len(tmp)):
-        x = tmp.iloc[i]
-        m=x.sort_values()[BadDays-1:-BadDays].mean()   
+    for i in range(len(testSet)):
+        x = testSet.iloc[i]
+        hour = x['create_hour']
+        m=avg.iloc[i,hour]   
         p.append(m)
     dir= './Average/'
     if not os.path.exists(dir):
         os.makedirs(dir)
         print(dir)
     result['count']=p
-    result.to_csv(dir+str(NumofDays)+'_'+str(LastDay)+'.csv',encoding='utf-8',index = False)        
+    result.to_csv(dir+'31.csv',encoding='utf-8',index = False)        
 
 def analysis(trainSet,testSet):
     result = pd.DataFrame()
@@ -220,13 +222,14 @@ def analysis(trainSet,testSet):
     result.to_csv('prediction.csv',encoding='utf-8',index = False)
 
 if __name__=="__main__":
-    #trainSet = ReadTrain()
-    #testSet = ReadTest()
+    trainSet = ReadTrain()
+    testSet = ReadTest()
     # DataSplit(trainSet)
     #getSplitedTrainData(trainSet,testSet)
     getAverage(31,31)
-    #getAverageWithnormal(31,31,1)
+    #getAverageWithnormal(testSet)
+    #getAverage
     #getMean()
-    ResultAnalysis()
+    #ResultAnalysis()
     #getSplitedWeather(trainSet,testSet)
     #analysis(trainSet,testSet)
