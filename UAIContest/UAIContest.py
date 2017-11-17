@@ -4,6 +4,9 @@ import datetime as dt
 import numpy as np
 import pickle
 from sklearn.svm import SVR
+from sklearn.linear_model import SGDRegressor
+import xgboost
+from DatasetGenerator import DatasetGenerator
 
 
 #plot A->B orders count by time
@@ -40,6 +43,7 @@ def GetHistoryMean(trainSet,startGeo,endGeo):
 def deal(trainSet,testSet):
     trainSet = trainSet[['start_geo_id','end_geo_id','create_date','create_hour']]
     #####Gen All Training Set and Train:
+    """
     X = []
     Y = []
     for d in range(31):
@@ -75,13 +79,17 @@ def deal(trainSet,testSet):
             else:
                 Y.append(0)
     pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
-    #dic = pickle.load(open('train.pkl','rb'))
+    """
     #todo: split validation and train set:
-    svr = SVR('linear')
+    dic = pickle.load(open('train.pkl','rb'))
+    X = dic['X']
+    Y = dic['Y']
+    m = xgboost.XGBRegressor()
     print("training...\n")
-    svr.fit( X ,Y)
-    print("train over, score: %.5lf\n"%(svr.score(np.array(X),np.array(Y).reshape((-1,1)))))
-    
+    m.fit(X ,Y)
+    print("train over, score: %.5lf\n"%(m.score(X,Y)))
+
+    """
     ###Gen All Test set and Gen Result:
     TX = []
     print('%s:  gen test set...\n'%dt.datetime.now())
@@ -110,8 +118,13 @@ def deal(trainSet,testSet):
         q.extend(cur)
         TX.append(q)
     pickle.dump({'X':TX},open('test.pkl','wb'))
-    YP = svr.predict(TX)
-    YP[YP<0]=0
+    """
+
+    tdic = pickle.load(open('test.pkl','rb'))
+    TX = tdic['X']
+    YP = m.apply(TX)
+    raw_input('wait')
+    YP[YP<0] = 0
 
     #Gen Result:
     result = pd.DataFrame()
@@ -121,6 +134,8 @@ def deal(trainSet,testSet):
 
 
 if __name__=="__main__":
-    trainJuly,trainAug = ReadTrain()
-    testSet = ReadTest()
-    deal(trainSet,testSet)
+    #trainJuly,trainAug = ReadTrain()
+    #testSet = ReadTest()
+    #deal(trainSet,testSet)
+    dg = DatasetGenerator(trainPath1,trainPath2)
+    dg.dummy()
