@@ -42,7 +42,7 @@ class DatasetGenerator(object):
                 f = self.GetCurrentDateStat(tmpset,d)
                 y=0
                 for j in range(len(f)):
-                    if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
+                    if (hur%2==0 and f.iloc[j,0]%2!=0) or (hur%2!=0 and f.iloc[j,0]%2==0):
                         cur[f.iloc[j,0]//2] = f.iloc[j,1]
                     if f.iloc[j,0]==hur:
                         y = f.iloc[j,1]
@@ -85,7 +85,7 @@ class DatasetGenerator(object):
             #todo : modify these start point and end point
             f = self.GetCurrentDateStat(tmpset,d)
             for j in range(len(f)):
-                if (hur%2==0 and j%2!=0) or (hur%2!=0 and j%2==0):
+                if (hur%2==0 and f.iloc[j,0]%2!=0) or (hur%2!=0 and f.iloc[j,0]%2==0):
                     cur[f.iloc[j,0]//2] = f.iloc[j,1]
                 if f.iloc[j,0]==hur:
                     y = f.iloc[j,1]
