@@ -85,7 +85,6 @@ class DatasetGenerator(object):
         for ele in Set:
             X.extend(ele[0])
             Y.extend(ele[1])
-        l=[]
         pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
         return X,Y
 
