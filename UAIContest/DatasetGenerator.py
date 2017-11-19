@@ -78,7 +78,7 @@ def GenTrainingSet():
         pass
     print("Gening Training set...\n")
     pool = Pool()
-    for i in range(50):
+    for i in range(len(testset)):
         pool.apply_async(WorkerForTrain,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]),callback=CbkForTrain)
 
     pool.close()
