@@ -17,56 +17,30 @@ X=[]
 Y=[]
 TX = []
 
-def GetCurrentDateStat(trainSet, date):
-    tmp = trainSet[  (trainSet['create_date']==date) ].groupby('create_hour').size().reset_index(name='count')
-    return tmp
-
 def GetHistoryMean(trainSet):
     tmp = trainSet.groupby(['create_date','create_hour']).size().reset_index(name='count')
     return tmp[tmp['count']<80].groupby('create_hour').mean().reset_index()
 
 def GetFeature(d, hur, tmpset):
-    cur = np.zeros(12)
-    #todo : modify these start point and end point
-    f = GetCurrentDateStat(tmpset,d)
-    y=0
-    for j in range(len(f)):
-        if (hur%2==0 and f.iloc[j,0]%2!=0) or (hur%2!=0 and f.iloc[j,0]%2==0):
-            cur[f.iloc[j,0]//2] = f.iloc[j,1]
-        if f.iloc[j,0]==hur:
-            y = f.iloc[j,1]
-    if hur%2==0:
-        p=(hur-1)//2
-    else:
-        p=hur//2
-    cur = np.roll(cur,5-p)
-    
-    his=np.zeros(24)
-    #todo : the same as above
-    g = GetHistoryMean(tmpset)
-    for j in range(len(g)):
-        his[ int(g.iloc[j,0]) ] = g.iloc[j,1]
-    feature=list(np.roll(his,11-hur))
-    feature.extend(cur)
-    return feature, y
+    feature = []
+    Y = []
+    tmp = tmpset[tmpset['create_hour']==hur].groupby('create_date').size().reset_index(name='count')
+    for i in range(len(tmp)):
+        feature.append((dt.datetime.strptime( tmp.iloc[i,0],'%Y-%m-%d') - dt.datetime(2017,7,1)).days)
+        Y.append(tmp.iloc[i,1])
+    return feature,Y
 
 def WorkerForTrain(*x):
     """
     x - [start_geo_id, end_geo_id, create_hour]
     """
-    X = []
-    Y = []
-    dates = [ (dt.datetime(2017,7,1)+dt.timedelta(k)).strftime('%Y-%m-%d') for k in range(31) ]
     tmpset = trainset[(trainset['start_geo_id']==x[0]) & (trainset['end_geo_id']==x[1])]
-    for d in dates:
-        feature, y = GetFeature(d, x[2], tmpset)
-        X.append(feature)
-        Y.append(y)
-    return (X,Y)
+    feature, y = GetFeature('notused', x[2], tmpset)
+    return (feature,y)
 
 def CbkForTrain(result):
-    X.extend(result[0])
-    Y.extend(result[1])
+    X.append(result[0])
+    Y.append(result[1])
     if len(Y)%100==0:
         print("%s, gened train %d\n"%(dt.datetime.now(),len(Y)))
 
