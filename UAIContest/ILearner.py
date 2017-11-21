@@ -1,6 +1,7 @@
 import math
 from xgboost import XGBRegressor
 import numpy as np
+from sklearn.svm import SVR
 
 class ILearner(object):
     def __init__(self):
@@ -8,6 +9,9 @@ class ILearner(object):
 
     def train(self,X,Y):
         pass
+
+    def train(args):
+        args[0].train(*args[1:])
 
     def predict(self,X):
         pass
@@ -37,3 +41,13 @@ class UseMean(ILearner):
     def predict(self, X):
         YP = np.array(X)[:,self.feind]
         return list(YP)
+
+class Linear(ILearner):
+    def __init__(self):
+        self.m = SVR('linear')
+    def train(self, X, Y):
+        self.m.fit(X,Y)
+    def predict(self,X):
+        t = self.m.predict(X)
+        t[t<0]=0
+        return t

@@ -39,8 +39,12 @@ def WorkerForTrain(*x):
     return (feature,y)
 
 def CbkForTrain(result):
-    X.append(result[0])
-    Y.append(result[1])
+    if len(result[0])==0:
+        X.append( [0,10,20,30] )
+        Y.append([0,0,0,0])
+    else:
+        X.append(result[0])
+        Y.append(result[1])
     if len(Y)%100==0:
         print("%s, gened train %d\n"%(dt.datetime.now(),len(Y)))
 
@@ -64,8 +68,9 @@ def WorkerForTest(*x):
     """
     x - ['start_geo_id','end_geo_id','create_date','create_hour']
     """
-    tmpset = trainset[(trainset['start_geo_id']==x[0]) & (trainset['end_geo_id']==x[1])]
-    feature,y = GetFeature(x[2],x[3],tmpset)
+    #tmpset = trainset[(trainset['start_geo_id']==x[0]) & (trainset['end_geo_id']==x[1])]
+    #feature,y = GetFeature(x[2],x[3],tmpset)
+    feature = [(dt.datetime.strptime(x[2],'%Y-%m-%d')-dt.datetime(2017,7,1)).days]
     return feature
 
 def CbkForTest(result):

@@ -1,26 +1,27 @@
 import pandas as pd
 from DatasetGenerator import GenTestSet,GenTrainingSet
-from ILearner import UseMean,Xgb
+from ILearner import UseMean,Xgb,Linear
 from multiprocessing.pool import Pool
+import numpy as np
+import matplotlib.pyplot as plt
 
 YP = []
-def log_result(result):
-    YP.append(int(result))
 
 def GenResult(X,Y,TX):
-    p = Pool()
-    models = [Xgb() for i in range(len(TX))]
+    models = [Linear() for i in range(len(TX))]
     for i in range(len(TX)):
-        p.apply_async(Xgb.train , (models[i],X[i],Y[i]))
-    p.close()
-    p.join()
+        #p.apply_async(Linear.train , (models[i], np.array(X[i]).reshape(-1,1), np.array(Y[i]).reshape(-1,1) ) )
+        XI = np.array(X[i]).reshape(-1,1)
+        YI = np.array(Y[i]).reshape(-1,1)
+        m = np.mean( YI )
+        ind = np.abs(YI-m)<=2*m
+        models[i].train(XI[ind].reshape(-1,1),YI[ind].reshape(-1,1))
+        #y = models[i].predict(XI)
+        #plt.plot(XI[ind], YI[ind] ,np.array(X[i]).reshape(-1,1), y )
+        #plt.show()
 
-    p = Pool()
     for i in range(len(TX)):
-        p.apply_async(Xgb.predict, (models[i],TX[i]),callback = log_result)
-    p.close()
-    p.join()
-
+        YP.append( float( models[i].predict( np.array(TX[i]).reshape(-1,1)  )  ) )
 
     #Gen Result:
     result = pd.DataFrame()
