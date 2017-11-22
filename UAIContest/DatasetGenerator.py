@@ -21,21 +21,26 @@ TX = []
 
 def WorkerForTrain(*x):
     """
-    x - [start_geo_id, end_geo_id, create_hour]
+    x - [start_geo_id, end_geo_id,create_date, create_hour]
     """
-    tmpset = trainset[(trainset['start_geo_id'] == x[0]) & (trainset['end_geo_id'] == x[1])].groupby(['create_date','create_hour']).size().reset_index(name='count')
-    feature = [i for i in range(24*31)]
-    Y = [0 for i in range(24*31)]
-    for i in range(len(tmpset)):
-        days = (dt.datetime.strptime( tmpset.loc[i,'create_date'] ,'%Y-%m-%d' )-dt.datetime(2017,7,1)).days
-        if days<31:
-            Y[ days*24 + tmpset.loc[i,'create_hour'] ] = tmpset.loc[i,'count']
+    feature = []
+    y=[]
+    time = dt.datetime.strptime(x[2],'%Y-%m-%d')+dt.timedelta(hours=int(x[3]))
+    timeL = time+dt.timedelta(hours=-1)
+    timeR = time+dt.timedelta(hours=1)
+    for k in range(3):
+        tmpset = trainset[(trainset['start_geo_id']==x[0]) &( trainset['end_geo_id']==x[1]) &  (trainset['status']==k)]
+        feature.append(len(tmpset[ (tmpset['create_hour']==timeL.hour) & (tmpset['create_date']==timeL.strftime('%Y-%m-%d'))]))
+        feature.append(len(tmpset[ (tmpset['create_hour']==timeR.hour)& (tmpset['create_date']==timeR.strftime('%Y-%m-%d'))]))
+        tmp = tmpset[tmpset['create_hour']==x[3]].groupby('create_date').size().reset_index(name='count')
+        tmp = tmp[tmp['count']<=20]
+        if len(tmp)>0:
+            feature.append(tmp[tmp['count']<=20]['count'].mean())
         else:
-            feature.append( days*24 + tmpset.loc[i,'create_hour'] )
-            Y.append(tmpset.loc[i,'count'])
+            feature.append(0)
     return (feature,Y)
 def dummy():
-    #WorkerForTrain('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2',21)
+    WorkerForTrain('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2','2017-08-01',21)
     pass
 def CbkForTrain(result):
     X.append(result[0])
@@ -52,7 +57,7 @@ def GenTrainingSet():
     print("Gening Training set...\n")
     pool = Pool(cpu_count()-1)
     for i in range(len(testset)):
-        pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]), callback=CbkForTrain)
+        pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]), callback=CbkForTrain)
 
     pool.close()
     pool.join()

@@ -5,9 +5,9 @@ from sklearn.gaussian_process.kernels import ExpSineSquared,WhiteKernel
 from multiprocessing.pool import Pool
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
 YP = []
-models = []
 def trainAndPredict(XI,YI,TXI,modeli):
     modeli.train(XI,YI)
     return modeli.predict(TXI)
@@ -18,16 +18,16 @@ def log_result(yp):
         print(len(YP))
 
 def GenResult(X,Y,TX):
-    global models
-    models = [GausProc(kernel = ExpSineSquared(periodicity=24)) for i in range(len(TX))]
-    p = Pool()
-    for i in range(len(TX)):
-        XI = np.array(X[i]).reshape(-1,1)
-        YI = np.array(Y[i]).reshape(-1,1)
-        TXI = np.array(TX[i]).reshape(-1,1)
-        p.apply_async(trainAndPredict , (XI,YI,TXI,models[i]),callback = log_result )
-    p.close()
-    p.join()
+    for i in range(len(X)):
+        y=[]
+        for j in range(3):
+            x = X[i][j*3:3+j*3]
+            if (math.fabs(x[0]-x[1])<8):
+                y.append((x[0]+x[1])/2)
+            else:
+                y.append(x[2])
+        YP.append(sum(y))
+
     #Gen Result:
     result = pd.DataFrame()
     result['test_id'] = range(5000)
@@ -40,7 +40,7 @@ def GenResult(X,Y,TX):
     #compare.to_csv('compare.csv',index=False)
 
 if __name__=="__main__":
-    X,Y = GenTrainingSet()
-    TX = GenTestSet()
-    GenResult(X,Y,TX)
     #dummy()
+    X,Y = GenTrainingSet()
+    #TX = GenTestSet()
+    GenResult(X,Y,X)
