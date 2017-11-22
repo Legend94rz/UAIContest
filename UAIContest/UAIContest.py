@@ -1,28 +1,33 @@
 import pandas as pd
-from DatasetGenerator import GenTestSet,GenTrainingSet
-from ILearner import UseMean,Xgb,Linear
+from DatasetGenerator import GenTestSet,GenTrainingSet,dummy
+from ILearner import UseMean,Xgb,Linear,GausProc
+from sklearn.gaussian_process.kernels import ExpSineSquared,WhiteKernel
 from multiprocessing.pool import Pool
 import numpy as np
 import matplotlib.pyplot as plt
 
 YP = []
+models = []
+def trainAndPredict(XI,YI,TXI,modeli):
+    modeli.train(XI,YI)
+    return modeli.predict(TXI)
+
+def log_result(yp):
+    YP.append(float(yp))
+    if len(YP)%100==0:
+        print(len(YP))
 
 def GenResult(X,Y,TX):
-    models = [Linear() for i in range(len(TX))]
+    global models
+    models = [GausProc(kernel = ExpSineSquared(periodicity=24)) for i in range(len(TX))]
+    p = Pool()
     for i in range(len(TX)):
-        #p.apply_async(Linear.train , (models[i], np.array(X[i]).reshape(-1,1), np.array(Y[i]).reshape(-1,1) ) )
         XI = np.array(X[i]).reshape(-1,1)
         YI = np.array(Y[i]).reshape(-1,1)
-        m = np.mean( YI )
-        ind = np.abs(YI-m)<=2*m
-        models[i].train(XI[ind].reshape(-1,1),YI[ind].reshape(-1,1))
-        #y = models[i].predict(XI)
-        #plt.plot(XI[ind], YI[ind] ,np.array(X[i]).reshape(-1,1), y )
-        #plt.show()
-
-    for i in range(len(TX)):
-        YP.append( float( models[i].predict( np.array(TX[i]).reshape(-1,1)  )  ) )
-
+        TXI = np.array(TX[i]).reshape(-1,1)
+        p.apply_async(trainAndPredict , (XI,YI,TXI,models[i]),callback = log_result )
+    p.close()
+    p.join()
     #Gen Result:
     result = pd.DataFrame()
     result['test_id'] = range(5000)
@@ -38,3 +43,4 @@ if __name__=="__main__":
     X,Y = GenTrainingSet()
     TX = GenTestSet()
     GenResult(X,Y,TX)
+    #dummy()

@@ -3,6 +3,8 @@ import datetime as dt
 import numpy as np
 import pickle
 from multiprocessing.pool import Pool
+from multiprocessing import cpu_count
+import matplotlib.pyplot as plt
 
 train_july = '.\\Data\\train_July.csv'
 train_aug = '.\\Data\\train_Aug.csv'
@@ -13,40 +15,33 @@ augset = pd.read_csv(train_aug)
 testset = pd.read_csv(testFile)
 trainset = pd.concat([julyset, augset])
 
-X=[]
-Y=[]
+X = []
+Y = []
 TX = []
-
-def GetHistoryMean(trainSet):
-    tmp = trainSet.groupby(['create_date','create_hour']).size().reset_index(name='count')
-    return tmp[tmp['count']<80].groupby('create_hour').mean().reset_index()
-
-def GetFeature(d, hur, tmpset):
-    feature = []
-    Y = []
-    tmp = tmpset[tmpset['create_hour']==hur].groupby('create_date').size().reset_index(name='count')
-    for i in range(len(tmp)):
-        feature.append((dt.datetime.strptime( tmp.iloc[i,0],'%Y-%m-%d') - dt.datetime(2017,7,1)).days)
-        Y.append(tmp.iloc[i,1])
-    return feature,Y
 
 def WorkerForTrain(*x):
     """
     x - [start_geo_id, end_geo_id, create_hour]
     """
-    tmpset = trainset[(trainset['start_geo_id']==x[0]) & (trainset['end_geo_id']==x[1])]
-    feature, y = GetFeature('notused', x[2], tmpset)
-    return (feature,y)
-
+    tmpset = trainset[(trainset['start_geo_id'] == x[0]) & (trainset['end_geo_id'] == x[1])].groupby(['create_date','create_hour']).size().reset_index(name='count')
+    feature = [i for i in range(24*31)]
+    Y = [0 for i in range(24*31)]
+    for i in range(len(tmpset)):
+        days = (dt.datetime.strptime( tmpset.loc[i,'create_date'] ,'%Y-%m-%d' )-dt.datetime(2017,7,1)).days
+        if days<31:
+            Y[ days*24 + tmpset.loc[i,'create_hour'] ] = tmpset.loc[i,'count']
+        else:
+            feature.append( days*24 + tmpset.loc[i,'create_hour'] )
+            Y.append(tmpset.loc[i,'count'])
+    return (feature,Y)
+def dummy():
+    #WorkerForTrain('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2',21)
+    pass
 def CbkForTrain(result):
-    if len(result[0])==0:
-        X.append( [0,10,20,30] )
-        Y.append([0,0,0,0])
-    else:
-        X.append(result[0])
-        Y.append(result[1])
-    if len(Y)%100==0:
-        print("%s, gened train %d\n"%(dt.datetime.now(),len(Y)))
+    X.append(result[0])
+    Y.append(result[1])
+    if len(Y) % 100 == 0:
+        print("%s, gened train %d\n" % (dt.datetime.now(),len(Y)))
 
 def GenTrainingSet():
     try:
@@ -55,9 +50,9 @@ def GenTrainingSet():
     except IOError:
         pass
     print("Gening Training set...\n")
-    pool = Pool()
+    pool = Pool(cpu_count()-1)
     for i in range(len(testset)):
-        pool.apply_async(WorkerForTrain,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]),callback=CbkForTrain)
+        pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]), callback=CbkForTrain)
 
     pool.close()
     pool.join()
@@ -68,15 +63,13 @@ def WorkerForTest(*x):
     """
     x - ['start_geo_id','end_geo_id','create_date','create_hour']
     """
-    #tmpset = trainset[(trainset['start_geo_id']==x[0]) & (trainset['end_geo_id']==x[1])]
-    #feature,y = GetFeature(x[2],x[3],tmpset)
-    feature = [(dt.datetime.strptime(x[2],'%Y-%m-%d')-dt.datetime(2017,7,1)).days]
+    feature = [(dt.datetime.strptime(x[2],'%Y-%m-%d') - dt.datetime(2017,7,1)).days*24 + x[3]]
     return feature
 
 def CbkForTest(result):
     TX.append(result)
-    if len(TX)%100==0:
-        print("%s, gened test %d\n"%(dt.datetime.now(),len(TX)))
+    if len(TX) % 100 == 0:
+        print("%s, gened test %d\n" % (dt.datetime.now(),len(TX)))
 
 def GenTestSet():
     try:
@@ -85,7 +78,7 @@ def GenTestSet():
     except IOError:
         pass
     print("Gening Test set...\n")
-    pool = Pool()
+    pool = Pool(cpu_count()-1)
     for i in range(len(testset)):
         pool.apply_async(WorkerForTest,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]),callback=CbkForTest)
     pool.close()

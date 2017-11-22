@@ -2,6 +2,7 @@ import math
 from xgboost import XGBRegressor
 import numpy as np
 from sklearn.svm import SVR
+from sklearn.gaussian_process import GaussianProcessRegressor
 
 class ILearner(object):
     def __init__(self):
@@ -9,9 +10,6 @@ class ILearner(object):
 
     def train(self,X,Y):
         pass
-
-    def train(args):
-        args[0].train(*args[1:])
 
     def predict(self,X):
         pass
@@ -50,4 +48,16 @@ class Linear(ILearner):
     def predict(self,X):
         t = self.m.predict(X)
         t[t<0]=0
+        return t
+
+class GausProc(ILearner):
+    def __init__(self, kernel):
+        self.m = GaussianProcessRegressor(kernel = kernel)
+
+    def train(self, X, Y):
+        self.m.fit(X,Y)
+
+    def predict(self, X):
+        t = self.m.predict(X)
+        t[t<0] = 0
         return t
