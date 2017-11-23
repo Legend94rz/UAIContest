@@ -1,5 +1,5 @@
 import pandas as pd
-from DatasetGenerator import GenTestSet,GenTrainingSet,dummy
+from DatasetGenerator import GenTrainingSet,dummy
 from ILearner import UseMean,Xgb,Linear,GausProc
 from sklearn.gaussian_process.kernels import ExpSineSquared,WhiteKernel
 from multiprocessing.pool import Pool
@@ -8,14 +8,6 @@ import matplotlib.pyplot as plt
 import math
 
 YP = []
-def trainAndPredict(XI,YI,TXI,modeli):
-    modeli.train(XI,YI)
-    return modeli.predict(TXI)
-
-def log_result(yp):
-    YP.append(float(yp))
-    if len(YP)%100==0:
-        print(len(YP))
 
 def GenResult(X,Y,TX):
     for i in range(len(X)):
