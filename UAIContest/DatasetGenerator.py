@@ -15,9 +15,7 @@ augset = pd.read_csv(train_aug)
 testset = pd.read_csv(testFile)
 trainset = pd.concat([julyset, augset])
 
-X = []
-Y = []
-TX = []
+finished = 0
 
 def WorkerForTrain(*x):
     """
@@ -42,11 +40,12 @@ def WorkerForTrain(*x):
 def dummy():
     WorkerForTrain('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2','2017-08-01',21)
     pass
+
 def CbkForTrain(result):
-    X.append(result[0])
-    Y.append(result[1])
-    if len(Y) % 100 == 0:
-        print("%s, gened train %d\n" % (dt.datetime.now(),len(Y)))
+    global finished
+    finished = finished+1
+    if finished % 100 == 0:
+        print("%s, gened train %d\n" % (dt.datetime.now(),finished))
 
 def GenTrainingSet():
     try:
@@ -54,40 +53,16 @@ def GenTrainingSet():
         return dic['X'],dic['Y']
     except IOError:
         pass
+    global finished
     print("Gening Training set...\n")
     pool = Pool(cpu_count()-1)
+    finished = 0
+    result = []
     for i in range(len(testset)):
-        pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]), callback=CbkForTrain)
-
+        result.append( pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]), callback=CbkForTrain) )
     pool.close()
     pool.join()
+    X = [result[i].get()[0] for i in range(len(result))]
+    Y = [result[i].get()[1] for i in range(len(result))]
     pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
     return X,Y
-
-def WorkerForTest(*x):
-    """
-    x - ['start_geo_id','end_geo_id','create_date','create_hour']
-    """
-    feature = [(dt.datetime.strptime(x[2],'%Y-%m-%d') - dt.datetime(2017,7,1)).days*24 + x[3]]
-    return feature
-
-def CbkForTest(result):
-    TX.append(result)
-    if len(TX) % 100 == 0:
-        print("%s, gened test %d\n" % (dt.datetime.now(),len(TX)))
-
-def GenTestSet():
-    try:
-        tdic = pickle.load(open('test.pkl','rb'))
-        return tdic['X']
-    except IOError:
-        pass
-    print("Gening Test set...\n")
-    pool = Pool(cpu_count()-1)
-    for i in range(len(testset)):
-        pool.apply_async(WorkerForTest,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]),callback=CbkForTest)
-    pool.close()
-    pool.join()
-    pickle.dump({'X':TX},open('test.pkl','wb'))
-    return TX
-
