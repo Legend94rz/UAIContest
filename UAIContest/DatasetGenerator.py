@@ -55,8 +55,8 @@ def GenTrainingSet():
         result.append( pool.apply_async(WorkerForTrain,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]),callback=CbkForTrain) )
     pool.close()
     pool.join()
-    X = [result[i][0] for i in range(len(result))]
-    Y = [result[i][1] for i in range(len(result))]
+    X = [result[i].get()[0] for i in range(len(result))]
+    Y = [result[i].get()[1] for i in range(len(result))]
     pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
     return X,Y
 
