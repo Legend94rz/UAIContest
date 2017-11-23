@@ -5,29 +5,31 @@ from sklearn.gaussian_process.kernels import ExpSineSquared,WhiteKernel
 from multiprocessing.pool import Pool
 import numpy as np
 import matplotlib.pyplot as plt
+import datetime as dt
 
-YP = []
-models = []
-def trainAndPredict(XI,YI,TXI,modeli):
+finished = 0
+def trainAndPredict(XI,YI,TXI):
+    modeli = GausProc(kernel = ExpSineSquared(periodicity=24))
     modeli.train(XI,YI)
     return modeli.predict(TXI)
 
 def log_result(yp):
-    YP.append(float(yp))
-    if len(YP)%100==0:
-        print(len(YP))
+    finished = finished + 1
+    if finished%100==0:
+        print("%s: %d"%(dt.datetime.now, finished))
 
 def GenResult(X,Y,TX):
     global models
-    models = [GausProc(kernel = ExpSineSquared(periodicity=24)) for i in range(len(TX))]
     p = Pool()
+    result = []
     for i in range(len(TX)):
         XI = np.array(X[i]).reshape(-1,1)
         YI = np.array(Y[i]).reshape(-1,1)
         TXI = np.array(TX[i]).reshape(-1,1)
-        p.apply_async(trainAndPredict , (XI,YI,TXI,models[i]),callback = log_result )
+        result.append( p.apply_async(trainAndPredict , (XI,YI,TXI),callback = log_result ))
     p.close()
     p.join()
+    YP = [float(result[i].get()) for i in range(len(result))]
     #Gen Result:
     result = pd.DataFrame()
     result['test_id'] = range(5000)
