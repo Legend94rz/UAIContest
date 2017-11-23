@@ -13,9 +13,7 @@ augset = pd.read_csv(train_aug)
 testset = pd.read_csv(testFile)
 trainset = pd.concat([julyset, augset])
 
-X=[]
-Y=[]
-TX = []
+finished = 0
 
 def GetHistoryMean(trainSet):
     tmp = trainSet.groupby(['create_date','create_hour']).size().reset_index(name='count')
@@ -39,14 +37,9 @@ def WorkerForTrain(*x):
     return (feature,y)
 
 def CbkForTrain(result):
-    if len(result[0])==0:
-        X.append( [0,10,20,30] )
-        Y.append([0,0,0,0])
-    else:
-        X.append(result[0])
-        Y.append(result[1])
-    if len(Y)%100==0:
-        print("%s, gened train %d\n"%(dt.datetime.now(),len(Y)))
+    finished=finished +1
+    if finished%100==0:
+        print("%s, gened train %d\n"%(dt.datetime.now(),finished))
 
 def GenTrainingSet():
     try:
@@ -55,12 +48,15 @@ def GenTrainingSet():
     except IOError:
         pass
     print("Gening Training set...\n")
+    result = []
+    finished = 0
     pool = Pool()
     for i in range(len(testset)):
-        pool.apply_async(WorkerForTrain,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]),callback=CbkForTrain)
-
+        result.append( pool.apply_async(WorkerForTrain,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]),callback=CbkForTrain) )
     pool.close()
     pool.join()
+    X = [result[i][0] for i in range(len(result))]
+    Y = [result[i][1] for i in range(len(result))]
     pickle.dump({'X':X,'Y':Y},open('train.pkl','wb'))
     return X,Y
 
@@ -85,11 +81,14 @@ def GenTestSet():
     except IOError:
         pass
     print("Gening Test set...\n")
+    finished = 0
+    result = []
     pool = Pool()
     for i in range(len(testset)):
         pool.apply_async(WorkerForTest,tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']]),callback=CbkForTest)
     pool.close()
     pool.join()
+    TX = [resul[i].get() for i in range(len(result))]
     pickle.dump({'X':TX},open('test.pkl','wb'))
     return TX
 
