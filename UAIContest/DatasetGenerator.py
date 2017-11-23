@@ -36,6 +36,7 @@ def dummy():
     #WorkerForTrain('c538ad66d710f99ad0ce951152da36a4','90bb1d035e403538d20b073aec57bea2',21)
     pass
 def CbkForTrain(result):
+    global finished
     finished = finished+1
     if finished % 100 == 0:
         print("%s, gened train %d\n" % (dt.datetime.now(),finished))
@@ -47,11 +48,12 @@ def GenTrainingSet():
     except IOError:
         pass
     print("Gening Training set...\n")
+    global finished
     finished = 0
     result = []
     pool = Pool(cpu_count()-1)
     for i in range(len(testset)):
-        resul.append(  pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]), callback=CbkForTrain) )
+        result.append(  pool.apply_async(WorkerForTrain, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_hour']]), callback=CbkForTrain) )
 
     pool.close()
     pool.join()
@@ -68,6 +70,7 @@ def WorkerForTest(*x):
     return feature
 
 def CbkForTest(result):
+    global finished
     finished = finished + 1
     if finished % 100 == 0:
         print("%s, gened test %d\n" % (dt.datetime.now(),finished))
@@ -79,6 +82,7 @@ def GenTestSet():
     except IOError:
         pass
     print("Gening Test set...\n")
+    global finished
     finished = 0
     result = []
     pool = Pool(cpu_count()-1)

@@ -14,9 +14,10 @@ def trainAndPredict(XI,YI,TXI):
     return modeli.predict(TXI)
 
 def log_result(yp):
+    global finished
     finished = finished + 1
     if finished%100==0:
-        print("%s: %d"%(dt.datetime.now, finished))
+        print("%s: %d"%(dt.datetime.now(), finished))
 
 def GenResult(X,Y,TX):
     global models
