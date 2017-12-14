@@ -195,7 +195,7 @@ function calc()
 	s = [ get(objS1,'Value'),get(objS2,'Value'),get(objS3,'Value'), get(objS4,'Value')]
 	minD = 999999999;
 	optoff = 0;
-	for off = 1
+	for off = 0:6
 		ind = withoffset.offset==off;
 		withoffset.count(ind & (withoffset.count>1) ) = withoffset.count(ind & (withoffset.count>1) )*3;
 		

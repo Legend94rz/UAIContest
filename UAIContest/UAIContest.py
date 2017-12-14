@@ -1,5 +1,5 @@
 import pandas as pd
-from DatasetGenerator import Synthe,testset,trainset
+from DatasetGenerator import Synthe,testset,trainset, poi, weather,OutlierSet
 import math
 import datetime as dt
 import numpy as np
@@ -8,8 +8,6 @@ from scipy import stats
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
 
-poi = pd.read_csv('Data\\poi.csv',encoding = 'ansi', header=None,names =list(range(21)))
-poi[22] = poi[12]+poi[18]
 
 def calcSimilitude(y):
     '''
@@ -33,7 +31,7 @@ def calcSimilitude(y):
 def makeOnePrediction(X,INDEX):
     start = testset.loc[INDEX,'start_geo_id']
     end = testset.loc[INDEX,'end_geo_id']
-    date = '2017-08-02'
+    date = testset.loc[INDEX,'create_date']
     DATE = dt.datetime.strptime(date,'%Y-%m-%d')
     hur = testset.loc[INDEX,'create_hour']
     XI = np.array(X[INDEX])
@@ -54,8 +52,6 @@ def makeOnePrediction(X,INDEX):
     #while R<len(s) and s[R]==0:
     #    R = R+1
 
-    target = trainset[(trainset['create_date']==DATE)&(trainset['create_hour']==hur)&(trainset['start_geo_id']==start)&(trainset['end_geo_id']==end)].shape[0]
-
     pre = s[L]
     if R>=len(s):
         R = len(s)-1
@@ -74,7 +70,7 @@ def makeOnePrediction(X,INDEX):
     if len(allHis[(allHis>0)]) > 0:
        meanOfHis = allHis[(allHis>0)].mean()
 
-    return sim,meanOfWeek,pre,nxt,L,R,meanOfHis,np.mean(s),target
+    return sim,meanOfWeek,pre,nxt,L,R,meanOfHis,np.mean(s)
 
 def work(X,i):
     try:
@@ -86,59 +82,32 @@ def work(X,i):
     except ValueError:
         poi2 =0
     p = makeOnePrediction(X,i)
-    return [poi1,poi2,p[1],testset.loc[i,'create_hour'],p[6],p[-1]]
+    return [poi1,poi2,testset.loc[i,'create_hour'],p[1],p[6],p[-1]]
 
+Q = []
+def log_result(res):
+    Q.append(res)
+    if len(Q)%100==0:
+        print('%s %d'%(dt.datetime.now(),len(Q)))
 
 def GenResult(X,Y,TX):
-    #result = pd.DataFrame()
-    #result['test_id'] = range(5000)
-    #yp = []
-    #col = ['sim','meanOfWeek','pre','nxt','L','R','meanOfHis','meanOfAll']
-    #for i in range(len(testset)):
-    #    yp.append(makeOnePrediction(X,i))
-    #
-    #yp = np.array(yp)
-    #for i in range(len(col)):
-    #    result[col[i]] = yp[:,i]
-    #result.to_csv('Fe.csv',index=False)
-    A = pd.DataFrame()
-    B = pd.DataFrame()
-    r = []
-    s = []
-    col = ['poi1','poi2','meanOfWeek','hur','meanOfHis','target']
+    col = ['sim','meanOfWeek','pre','nxt','L','R','meanOfHis','meanOfAll']
+    f186 = pd.read_csv('1.86.csv')
+    f197 = pd.read_csv('1.97.csv')
     for i in range(len(testset)):
-        if i%100==0:
-            print('%s %d'%(dt.datetime.now(),i))
-        try:
-            poi1 = poi[ poi[0]==testset.loc[i,'start_geo_id'] ][22].item()
-        except ValueError:
-            poi1 = 0
-        try:
-            poi2 = poi[ poi[0]==testset.loc[i,'end_geo_id'] ][22].item()
-        except ValueError:
-            poi2 =0
-        p = makeOnePrediction(X,i)
-        if testset.loc[i,'create_hour']%2==0:
-            r.append([poi1,poi2,p[1],testset.loc[i,'create_hour'],p[6],p[-1]])
-        else:
-            s.append([poi1,poi2,p[1],testset.loc[i,'create_hour'],p[6]])
-    r = np.array(r)
-    s = np.array(s)
-    for i in range(len(col)):
-        A[col[i]] = r[:,i]
-        if i!=len(col-1):
-            B[col[i]] = s[:,i]
-
-    A.to_csv('A.csv',index =False)
-    B.to_csv('B.csv',index =False)
+        #t = makeOnePrediction(X,i)
+        if testset.loc[i,'create_date']=='2017-08-02' and( testset.loc[i,'create_hour'] == 20 or testset.loc[i,'create_hour'] == 22) and f186.loc[i,'count']>=10:
+            f186.loc[i,'count'] = (f186.loc[i,'count']*0.02 + 0.8)*f186.loc[i,'count']
+    f186.to_csv('amp2022gt10.csv',index = False)
 
 
 
 def analisis(X):
-    R =pd.read_csv('1.97.csv')
-    for i in range(666,len(testset)):
-        #if ind[i]:
-        if True:
+    R = pd.read_csv('1.86.csv')
+    l = []
+
+    for i in range(len(testset)):
+        if testset.loc[i,'create_date']=='2017-08-02' and( testset.loc[i,'create_hour'] == 20 or testset.loc[i,'create_hour'] == 22):
             print(testset.loc[i])
             #f,axs = plt.subplots(3,sharey = False)
             #for k in range(3):
@@ -151,20 +120,19 @@ def analisis(X):
             #s = X[i][k]
             s = np.sum(X[i],0)
             y = s
-            #axs[k].plot(x,y)
             plt.plot(x,y)
             days = (dt.datetime.strptime(testset.loc[i,'create_date'],'%Y-%m-%d')-dt.datetime(2017,7,1)).days
-            #axs[k].plot(days*24+testset.loc[i,'create_hour'], R.loc[i,'count'],'rx')
             plt.plot(days*24+testset.loc[i,'create_hour'], R.loc[i,'count'],'rx')
             x=range(testset.loc[i,'create_hour'],31*24,24)
             y=[s[j] for j in x]
-            #axs[k].plot(x,y,'bx')
             plt.plot(x,y,'bx')
-            #f.subplots_adjust(hspace=0)
             plt.show()
+            l.append(R.loc[i,'count'])
+    print(l)
 
 
 if __name__ == "__main__":
-    X,Y,TX = Synthe()
-    GenResult(X,Y,X)
+    X,Y,TX = OutlierSet()
+    #GenResult(X,Y,X)
     #analisis(X)
+    l=[]
