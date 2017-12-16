@@ -3,18 +3,18 @@ import pickle
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
 import pandas as pd
+import numpy as np
 
 julyset = pd.read_csv('.\\Data\\train_July.csv')
 augset = pd.read_csv('.\\Data\\train_Aug.csv')
 testset = pd.read_csv('.\\Data\\test_id_Aug_agg_public5k.csv')
-poi = pd.read_csv('.\\Data\\poi.csv',encoding = 'ansi', header=None,names =list(range(21)))
+poi = pd.read_csv('.\\Data\\poi.csv',encoding = 'ansi', header=None, names = list(range(21)))
 weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
-trainset = pd.concat([julyset, augset])
-poi[22] = poi[12] + poi[18]
 weather['date'] = weather['date'].map(lambda x:dt.datetime.strptime(x,'%Y/%m/%d %H:%M'))
 weather['MyCode'] = weather['text'].map({'晴':1,'多云':2,'阴':2,'阵雨':3,'雷阵雨':3,'小雨':3,'中雨':4,'大雨':5})
 
+trainset = pd.concat([julyset, augset])
 ### tool kits
 finished = 0
 def log_result(result):
@@ -64,17 +64,36 @@ def GenTestSet(filename, interface):
     TX = [result[i].get()[0] for i in range(len(result))]
     pickle.dump({'X':TX},open(filename + '-test.pkl','wb'))
     return TX
+
+#10 element
+poiCatch = {}
 def getPOI(id):
-    try:
-        return list(poi[poi[0] == id][[2,4,6,8,10,12,14,16,18,20]].values[0])
-    except (IndexError,KeyError):
-        return [0 for i in range(10)]
-def getWeather(time):
-    #todo half hour?
-    try:
-        return list(weather[(weather['date'] == time)][['MyCode','feels_like','wind_scale','humidity']].values[0])
-    except (IndexError,KeyError):
-        return [0 for i in range(4)]
+    if id in poiCatch:
+        result = poiCatch[id]
+    else:
+        try:
+            result = list(poi[poi[0] == id][[2,4,6,8,10,12,14,16,18,20]].values[0])
+        except (IndexError,KeyError):
+            result = [0 for i in range(10)]
+        poiCatch[id] = result
+    return result
+
+# 4 element
+weatherCatch = {}
+def getWeather(time, howManyHalfHour=4):
+    result = []
+    for j in range(howManyHalfHour):
+        if time in weatherCatch:
+            result.extend(weatherCatch[time])
+        else:
+            tmp = weather[(weather['date'] == time)][['MyCode','feels_like','wind_scale','humidity']]
+            t = [0 for i in range(4)]
+            if tmp.shape[0] > 0:
+                t = list(tmp.iloc[0])
+            result.extend(t)
+            weatherCatch[time] = t
+        time = time + dt.timedelta(minutes = 30)
+    return result
 
 def flatten(l):    
     for el in l:    
@@ -159,8 +178,8 @@ def OutlierForTraining(*x):
     feature = []
     Y = []
     for i in range(len(time)):
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather(time[i] + dt.timedelta(hours=-1)),  mid[i]])])
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather(time[i] + dt.timedelta(hours=+1)),  mid[i]])])
+        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather(time[i] + dt.timedelta(hours=-1),1),  mid[i]])])
+        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather(time[i] + dt.timedelta(hours=+1),1),  mid[i]])])
         Y.append(left[i])
         Y.append(right[i])
     return (feature,Y)
@@ -171,9 +190,9 @@ def OutlierForTest(*x):
     feature = []
     m = trainset[(trainset['start_geo_id'] == start) & (trainset['end_geo_id'] == end) & (trainset['create_date'] == x[2]) & (trainset['create_hour'] == 21)].shape[0]
     if(x[3] == 20):
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather('2017-08-02 20:00'),  m])])
+        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather('2017-08-02 20:00',1),  m])])
     else:
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather('2017-08-02 22:00'),  m])])
+        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather('2017-08-02 22:00',1),  m])])
     return feature
 
 def OutlierSet():
@@ -189,3 +208,73 @@ def OutlierSet():
     Y = [y for y in flatten(Y)]
     TX = GenTestSet('Outlier',aplyForTest)
     return X,Y,TX
+
+
+#[ poi of start, poi of end, weather of next 2 hour, weekday, hour, isOutlier ] | [count]
+# 10 + 10 + 4*4 + 1 + 1 + 1 = 39 ;
+def GenSSTrain(df,filename):
+    try:
+        dic = pickle.load(open(filename + '.pkl','rb'))
+        return dic['X'],dic['Y']
+    except IOError:
+        pass
+    Jset = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
+    count = Jset['count']
+
+    Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
+    Jset['weekday'] = Jset['datetime'].map(lambda x: x.weekday() + 1)
+
+    poiOfStart = np.array(Jset['start_geo_id'].apply(getPOI))
+    poiOfEnd = np.array(Jset['end_geo_id'].apply(getPOI))
+    wthr = Jset['datetime'].apply(getWeather)
+    wdAndHur = np.array(Jset[['weekday','create_hour']])
+    X = []
+    Y = []
+    for i in range(len(count)):
+        isOutlier = 0
+        if i > 0 and i < len(count) - 1:
+            if count[i] > 20 and count[i] > 3 * count[i - 1] and count[i] > 3 * count[i + 1]:
+                isOutlier = 1
+        t = []
+        t.extend(poiOfStart[i])
+        t.extend(poiOfEnd[i])
+        t.extend(wthr[i])
+        t.extend(wdAndHur[i])
+        t.append(isOutlier)
+        X.append(t)
+        Y.append(count[i])
+    pickle.dump({'X':X,'Y':Y},open(filename + '.pkl','wb'))
+    return X,Y
+
+def GenSSTest(df,filename):
+    try:
+        dic = pickle.load(open(filename + '.pkl','rb'))
+        return dic['X']
+    except IOError:
+        pass
+    df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
+    df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
+    poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
+    poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
+    wthr = np.array(df['datetime'].apply(getWeather))
+    wdAndHur = np.array(df[['weekday','create_hour']])
+    X = []
+    for i in range(len(df)):
+        isOutlier = 0
+        if df.loc[i,'create_date'] == '2017-08-02' and (df.loc[i,'create_hour'] == 20 or df.loc[i,'create_hour'] == 22):
+            isOutlier = 1
+        t = []
+        t.extend(poiOfStart[i])
+        t.extend(poiOfEnd[i])
+        t.extend(wthr[i])
+        t.extend(wdAndHur[i])
+        t.append(isOutlier)
+        X.append(t)
+    pickle.dump({'X':X},open(filename + '.pkl','wb'))
+    return X
+
+def SSSet():
+    X,Y = GenSSTrain(julyset,'SSJuly')
+    VX,VY = GenSSTrain(augset,'SSAug')
+    TX = GenSSTest(testset,'SSTest')
+    return np.array( X ), np.array( Y ).reshape((-1,1)), np.array( VX ), np.array( VY ).reshape((-1,1)), np.array( TX )
