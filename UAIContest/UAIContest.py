@@ -4,9 +4,8 @@ import math
 import datetime as dt
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import stats
-from multiprocessing.pool import Pool
-from multiprocessing import cpu_count
+from ILearner import Xgb
+from sklearn.model_selection import KFold
 
 
 def calcSimilitude(y):
@@ -91,16 +90,19 @@ def log_result(res):
         print('%s %d'%(dt.datetime.now(),len(Q)))
 
 def GenResult(X,Y,TX):
-    col = ['sim','meanOfWeek','pre','nxt','L','R','meanOfHis','meanOfAll']
-    f186 = pd.read_csv('1.86.csv')
-    f197 = pd.read_csv('1.97.csv')
-    for i in range(len(testset)):
-        #t = makeOnePrediction(X,i)
-        if testset.loc[i,'create_date']=='2017-08-02' and( testset.loc[i,'create_hour'] == 20 or testset.loc[i,'create_hour'] == 22) and f186.loc[i,'count']>=10:
-            f186.loc[i,'count'] = (f186.loc[i,'count']*0.02 + 0.8)*f186.loc[i,'count']
-    f186.to_csv('amp2022gt10.csv',index = False)
-
-
+    m = Xgb()
+    kf = KFold(3,random_state = 0)
+    s = 0
+    for train_index,test_index in kf.split(X):
+        m.train(X[train_index],Y[train_index])
+        s0 = m.score(m.predict(X[test_index]),Y[test_index])
+        print('score %f\n'%s0)
+        s = s + s0
+    print('final socre: %f\n'%(s/3))
+    tp = m.predict(TX)
+    result = pd.DataFrame()
+    result['count']=tp
+    result.to_csv('XGBforOutlier.csv',index = False)
 
 def analisis(X):
     R = pd.read_csv('1.86.csv')
@@ -133,6 +135,4 @@ def analisis(X):
 
 if __name__ == "__main__":
     X,Y,TX = OutlierSet()
-    #GenResult(X,Y,X)
-    #analisis(X)
-    l=[]
+    GenResult(np.array(X),np.array( Y ),np.array( TX ))

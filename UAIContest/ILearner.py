@@ -1,5 +1,6 @@
 import math
 from xgboost import XGBRegressor
+import xgboost as xgb
 import numpy as np
 from sklearn.svm import SVR
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -23,7 +24,6 @@ class ILearner(object):
 class Xgb(ILearner):
     def __init__(self):
         self.m = XGBRegressor()
-    
     def train(self, X, Y):
         self.m.fit(X,Y)
 

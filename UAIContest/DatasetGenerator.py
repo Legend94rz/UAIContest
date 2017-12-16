@@ -12,7 +12,6 @@ weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
 trainset = pd.concat([julyset, augset])
 poi[22] = poi[12] + poi[18]
-weather = weather.drop(weather.columns[12],axis = 1)
 weather['date'] = weather['date'].map(lambda x:dt.datetime.strptime(x,'%Y/%m/%d %H:%M'))
 weather['MyCode'] = weather['text'].map({'晴':1,'多云':2,'阴':2,'阵雨':3,'雷阵雨':3,'小雨':3,'中雨':4,'大雨':5})
 
@@ -187,5 +186,6 @@ def OutlierSet():
             return None
     X,Y = GenTrainingSet('Outlier',aplyForTrain)
     X = [X[i][j] for i in range(len(X)) for j in range(len(X[i]))]
+    Y = [y for y in flatten(Y)]
     TX = GenTestSet('Outlier',aplyForTest)
     return X,Y,TX
