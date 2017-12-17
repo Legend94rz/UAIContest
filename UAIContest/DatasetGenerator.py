@@ -13,6 +13,7 @@ weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
 weather['date'] = weather['date'].map(lambda x:dt.datetime.strptime(x,'%Y/%m/%d %H:%M'))
 weather['MyCode'] = weather['text'].map({'晴':1,'多云':2,'阴':2,'阵雨':3,'雷阵雨':3,'小雨':3,'中雨':4,'大雨':5})
+weather = weather.fillna(0)
 
 trainset = pd.concat([julyset, augset])
 ### tool kits
@@ -277,4 +278,4 @@ def SSSet():
     X,Y = GenSSTrain(julyset,'SSJuly')
     VX,VY = GenSSTrain(augset,'SSAug')
     TX = GenSSTest(testset,'SSTest')
-    return np.array( X ), np.array( Y ).reshape((-1,1)), np.array( VX ), np.array( VY ).reshape((-1,1)), np.array( TX )
+    return np.array( X ), np.array( Y ), np.array( VX ), np.array( VY ), np.array( TX )

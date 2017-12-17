@@ -24,14 +24,14 @@ def GenResult(X,Y,VX,VY,TX):
     models = [
         XGBRegressor(),
         LinearRegression(),
-        PassiveAggressiveRegressor(),
+        PassiveAggressiveRegressor(tol = None,max_iter = 50),
         SGDRegressor(),
         Ridge(),
-        DecisionTreeRegressor(),
-        SVR(kernel = 'linear')     
+        #DecisionTreeRegressor(),
+        SVR(kernel = 'linear',max_iter = 20),
         ]
-    meta = SVR(kernel = 'rbf')
-    stack = StackingRegressor(regressors = models,meta_regressor = meta)
+    meta = SVR(kernel = 'rbf',max_iter = 20)
+    stack = StackingRegressor(regressors = models,meta_regressor = meta, verbose = 4)
     stack.fit(X,Y)
     yp = stack.predict(VX)
     print('validation socre: %f\n' % L.score(VY,yp))
@@ -41,7 +41,7 @@ def GenResult(X,Y,VX,VY,TX):
 
 if __name__ == "__main__":
     X,Y,VX,VY,TX = SSSet()
-    s = np.random.rand(len(Y),1)
+    s = np.random.rand(len(Y))
     ind = ((Y==1)&(s>=0.5)) | (Y!=1)
     X = X[ind]
     Y = Y[ind]
