@@ -221,7 +221,25 @@ def GenSSTrain(df,filename):
         pass
     Jset = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
     count = Jset['count']
+    
+    zeroData = 0
+    ZSet = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
+    randStartId = []
+    randEndId = []
+    while zeroData<3000:
+        if (zeroData+1) % 1000==0:
+            print('%s gened %d rand Samples\n'%(dt.datetime.now(),zeroData+1))
+        randDate = dt.datetime(2017,7,np.random.randint(1,32)).strftime('%Y-%m-%d')
+        randHur = np.random.randint(0,24)
+        randStartId.append( np.random.randint(0,len(poi)) )
+        randEndId.append( np.random.randint(0,len(poi)))
+        ZSet.loc[zeroData]= ['','',randDate,randHur]
+        zeroData = zeroData + 1
+    ZSet['start_geo_id']  = np.array( poi.iloc[randStartId,0] )
+    ZSet['end_geo_id']  = np.array( poi.iloc[randEndId,0] )
 
+    Jset = Jset.merge(how='outer',right = ZSet,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0)
+    print(Jset[Jset['count']==0].shape)
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
     Jset['weekday'] = Jset['datetime'].map(lambda x: x.weekday() + 1)
 
@@ -229,19 +247,20 @@ def GenSSTrain(df,filename):
     poiOfEnd = np.array(Jset['end_geo_id'].apply(getPOI))
     wthr = Jset['datetime'].apply(getWeather)
     wdAndHur = np.array(Jset[['weekday','create_hour']])
+    outlier = np.zeros(len(count))
     X = []
     Y = []
     for i in range(len(count)):
-        isOutlier = 0
-        if i > 0 and i < len(count) - 1:
-            if count[i] > 20 and count[i] > 3 * count[i - 1] and count[i] > 3 * count[i + 1]:
-                isOutlier = 1
         t = []
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
         t.extend(wdAndHur[i])
-        t.append(isOutlier)
+        #isOutlier = 0
+        #if i > 0 and i < len(count) - 1:
+        #    if count[i] > 20 and count[i] > 3 * count[i - 1] and count[i] > 3 * count[i + 1]:
+        #        isOutlier = 1
+        #t.append(isOutlier)
         X.append(t)
         Y.append(count[i])
     pickle.dump({'X':X,'Y':Y},open(filename + '.pkl','wb'))
@@ -261,15 +280,15 @@ def GenSSTest(df,filename):
     wdAndHur = np.array(df[['weekday','create_hour']])
     X = []
     for i in range(len(df)):
-        isOutlier = 0
-        if df.loc[i,'create_date'] == '2017-08-02' and (df.loc[i,'create_hour'] == 20 or df.loc[i,'create_hour'] == 22):
-            isOutlier = 1
         t = []
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
         t.extend(wdAndHur[i])
-        t.append(isOutlier)
+        #isOutlier = 0
+        #if df.loc[i,'create_date'] == '2017-08-02' and (df.loc[i,'create_hour'] == 20 or df.loc[i,'create_hour'] == 22):
+        #    isOutlier = 1
+        #t.append(isOutlier)
         X.append(t)
     pickle.dump({'X':X},open(filename + '.pkl','wb'))
     return X
@@ -279,3 +298,4 @@ def SSSet():
     VX,VY = GenSSTrain(augset,'SSAug')
     TX = GenSSTest(testset,'SSTest')
     return np.array( X ), np.array( Y ), np.array( VX ), np.array( VY ), np.array( TX )
+
