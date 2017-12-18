@@ -6,7 +6,7 @@ from sklearn.model_selection import KFold
 from ILearner import ILearner,Xgb
 from xgboost import XGBRegressor
 
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
 
 from mlxtend.regressor import StackingRegressor
 
@@ -20,7 +20,9 @@ def GenResult(X,Y,VX,VY,TX):
     L = ILearner()
     models = [
         XGBRegressor(),
-        LinearRegression(),
+        #LinearRegression(),
+        #Ridge(),
+        PassiveAggressiveRegressor(max_iter = 20)
         ]
     meta = XGBRegressor(max_depth = 20)
     stack = StackingRegressor(regressors = models,meta_regressor = meta, verbose = 4)
@@ -31,6 +33,14 @@ def GenResult(X,Y,VX,VY,TX):
     saveResult('stack',Final)
 
 
+def stratifiedSampling(group):
+    if group.name==1:
+        frac = 0.7
+    else:
+        frac = 1
+    return group.sample(frac = frac)
+
 if __name__ == "__main__":
     Train, Validation, Test = SSSet()
-    GenResult(Train.iloc[:,4:],Train.iloc[:,-1], Validation.iloc[:,4:], Validation.iloc[:,-1] , Test.iloc[:,4:])
+    Train = Train.groupby('count').apply(stratifiedSampling)
+    GenResult(Train.iloc[:,4:-1],Train.iloc[:,-1], Validation.iloc[:,4:-1], Validation.iloc[:,-1] , Test.iloc[:,4:])
