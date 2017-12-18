@@ -243,7 +243,8 @@ def GenSSTrain(df,filename):
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
     Jset['weekday'] = Jset['datetime'].map(lambda x: x.weekday() + 1)
 
-    TSet = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
+    TSet = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour',\
+                                   'soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
@@ -256,6 +257,7 @@ def GenSSTrain(df,filename):
     count = Jset['count']
     for i in range(len(Jset)):
         t = []
+        t.extend(Jset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']])
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
@@ -273,7 +275,8 @@ def GenSSTest(df,filename):
         pass
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
-    TSet = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
+    TSet = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour',\
+                                   'soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
@@ -285,6 +288,7 @@ def GenSSTest(df,filename):
     wdAndHur = np.array(df[['weekday','create_hour']])
     for i in range(len(df)):
         t = []
+        t.extend(df.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']])
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
@@ -294,8 +298,8 @@ def GenSSTest(df,filename):
     return TSet
 
 def SSSet():
-    X,Y = GenSSTrain(julyset,'SSJuly')
-    VX,VY = GenSSTrain(augset,'SSAug')
-    TX = GenSSTest(testset,'SSTest')
-    return np.array( X ), np.array( Y ), np.array( VX ), np.array( VY ), np.array( TX )
+    Train = GenSSTrain(julyset,'SSJuly')
+    Validation = GenSSTrain(augset,'SSAug')
+    Test = GenSSTest(testset,'SSTest')
+    return Train,Validation,Test
 

@@ -32,9 +32,5 @@ def GenResult(X,Y,VX,VY,TX):
 
 
 if __name__ == "__main__":
-    X,Y,VX,VY,TX = SSSet()
-    s = np.random.rand(len(Y))
-    ind = ((Y==1)&(s>=0.5)) | (Y!=1)
-    X = X[ind]
-    Y = Y[ind]
-    GenResult(X,Y,VX,VY,TX)
+    Train, Validation, Test = SSSet()
+    GenResult(Train.iloc[:,4:],Train.iloc[:,-1], Validation.iloc[:,4:], Validation.iloc[:,-1] , Test.iloc[:,4:])
