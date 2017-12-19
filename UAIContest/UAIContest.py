@@ -16,19 +16,15 @@ def saveResult(filename, yp):
     result['count']=yp
     result.to_csv(filename+'.csv',index = False)
 
-def GenResult(X,Y,VX,VY,TX):
+def GenResult(X,Y,TX):
     L = ILearner()
     models = [
         XGBRegressor(),
-        #LinearRegression(),
-        #Ridge(),
         PassiveAggressiveRegressor(max_iter = 20)
         ]
     meta = XGBRegressor(max_depth = 20)
     stack = StackingRegressor(regressors = models,meta_regressor = meta, verbose = 4)
     stack.fit(X,Y)
-    yp = stack.predict(VX)
-    print('validation socre: %f\n' % L.score(VY,yp))
     Final = stack.predict(TX)
     saveResult('stack',Final)
 
@@ -41,6 +37,6 @@ def stratifiedSampling(group):
     return group.sample(frac = frac)
 
 if __name__ == "__main__":
-    Train, Validation, Test = SSSet()
+    Train, Test = SSSet()
     Train = Train.groupby('count').apply(stratifiedSampling)
-    GenResult(Train.iloc[:,4:-1],Train.iloc[:,-1], Validation.iloc[:,4:-1], Validation.iloc[:,-1] , Test.iloc[:,4:])
+    GenResult(Train.iloc[:,4:-1],Train.iloc[:,-1], Test.iloc[:,4:])

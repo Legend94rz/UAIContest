@@ -211,35 +211,71 @@ def OutlierSet():
     return X,Y,TX
 
 
-#[ poi of start, poi of end, weather of next 2 hour, weekday, hour, isOutlier ]
+#[ poi of start, poi of end, weather of next 2 hour, weekday, hour ]
 #| [count]
-# 10 + 10 + 4*4 + 1 + 1 + 1 = 39 ;
-def GenSSTrain(df,filename,zeros):
+# 10 + 10 + 4*4 + 1 + 1 = 38 ;
+
+# 不再生成验证集，用7月份训练，8月份测试
+def GetNeighboor(df):
     try:
-        TSet = pd.read_csv(filename + '.csv')
-        return TSet
+        return pd.read_csv('Neighboors.csv')
     except FileNotFoundError:
         pass
+    X = []
+    mat = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count').values
+    s,t = mat[0,0],mat[0,1]
+    i=0
+    while i < len(mat):
+        print('%s gen %d neighboors\n'%(dt.datetime.now(),i))
+        tmp = np.zeros(40*24)
+        j=i
+        while mat[j,0]==s and mat[j,1]==t:
+            tmp[ (dt.datetime.strptime( mat[j,2] ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + mat[j,3] ] = mat[j,-1]
+            j = j + 1
+        tmp[0:24] = tmp[24:48]  #6.30 <- 7.1
+        tmp[-24:] = tmp[-48:-24]# 8.8 <- 8.7
+        while i<j:
+            pos = (dt.datetime.strptime( mat[i,2] ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + mat[i,3]
+            ind = pos + np.array(range(-11,11,2))
+            X.append( list(tmp[ ind ]) )
+            i = i+1
+        s,t = mat[i,0],mat[i,1]
+    nei = pd.DataFrame(data = np.array(X) ,columns = [str(i) for i in range(-11,11,2)])
+    nei = pd.concat([ df[['start_geo_id','end_geo_id','create_date','create_hour']], nei],axis = 1)
+    nei.to_csv('Neighboors.csv',index=False)
+    return nei
 
+def GenSSTrain(df,filename,zeros,month,nei):
+    try:
+        return pd.read_csv(filename + '.csv')
+    except FileNotFoundError:
+        pass
     Jset = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
     
     zeroData = 0
-    ZSet = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
+    Zset = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
     randStartId = []
     randEndId = []
     while zeroData < zeros:
         if (zeroData + 1) % 5000 == 0:
             print('%s gened %d rand Samples\n' % (dt.datetime.now(),zeroData + 1))
-        randDate = dt.datetime(2017,7,np.random.randint(1,32)).strftime('%Y-%m-%d')
-        randHur = np.random.randint(0,24)
+        if month == 7:
+            randDate = dt.datetime(2017,7,np.random.randint(1,32)).strftime('%Y-%m-%d')
+            randHur = np.random.randint(0,24)
+        else:
+            d = np.random.randint(1,8)
+            randHur = np.random.randint(0,12) * 2 + (d%2==0)
+            randDate = dt.datetime(2017,8,d).strftime('%Y-%m-%d')
         randStartId.append(np.random.randint(0,len(poi)))
         randEndId.append(np.random.randint(0,len(poi)))
-        ZSet.loc[zeroData] = ['','',randDate,randHur]
+        Zset.loc[zeroData] = ['','',randDate,randHur]
         zeroData = zeroData + 1
-    ZSet['start_geo_id'] = np.array(poi.iloc[randStartId,0])
-    ZSet['end_geo_id'] = np.array(poi.iloc[randEndId,0])
+    Zset['start_geo_id'] = np.array(poi.iloc[randStartId,0])
+    Zset['end_geo_id'] = np.array(poi.iloc[randEndId,0])
 
-    Jset = Jset.merge(how='outer',right = ZSet,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0)
+    Jset = Jset.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0)
+    Jset = Jset.merge(how = 'inner',right = nei,on = ['start_geo_id','end_geo_id','create_date','create_hour'])
+
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
     Jset['weekday'] = Jset['datetime'].map(lambda x: x.weekday() + 1)
 
@@ -247,7 +283,6 @@ def GenSSTrain(df,filename,zeros):
     poiOfEnd = np.array(Jset['end_geo_id'].apply(getPOI))
     wthr = Jset['datetime'].apply(getWeather)
     wdAndHur = np.array(Jset[['weekday','create_hour']])
-    count = Jset['count']
     X = []
     for i in range(len(Jset)):
         if i % 10000 == 0:
@@ -257,25 +292,24 @@ def GenSSTrain(df,filename,zeros):
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
         t.extend(wdAndHur[i])
-        t.append(count[i])
         X.append(t)
 
-    TSet = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
+    Tset = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
-                                   'weekday','hour','count'\
+                                   'weekday','hour'\
                                    ],data = np.array(X))
-    TSet = pd.concat([Jset[['start_geo_id','end_geo_id','create_date','create_hour']],TSet],axis = 1)
-    TSet.to_csv(filename + '.csv',index = False)
-    return TSet
+    Tset = pd.concat([ Jset[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Jset[[str(i) for i in range(-11,11,2)] ], Jset['count'] ],axis = 1)
+    Tset.to_csv(filename + '.csv',index = False)
+    return Tset
 
-def GenSSTest(df,filename):
+def GenSSTest(df,filename,nei):
     try:
-        TSet = pd.read_csv(filename + '.csv')
-        return TSet
+        return pd.read_csv(filename + '.csv')
     except FileNotFoundError:
         pass
+    df = df.merge(how = 'inner',right = nei,on = ['start_geo_id','end_geo_id','create_date','create_hour'])
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
     poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
@@ -290,19 +324,19 @@ def GenSSTest(df,filename):
         t.extend(wthr[i])
         t.extend(wdAndHur[i])
         X.append(t)
-    TSet = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
+    Tset = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
                                    'weekday','hour'\
                                    ],data = np.array(X))
-    TSet = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']],TSet],axis = 1)
-    TSet.to_csv(filename + '.csv',index = False)
-    return TSet
+    Tset = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset,df[[str(i) for i in range(-11,11,2)]] ],axis = 1)
+    Tset.to_csv(filename + '.csv',index = False)
+    return Tset
 
 def SSSet():
-    Train = GenSSTrain(julyset,'SSJuly',80000)
-    Validation = GenSSTrain(augset,'SSAug',20000)
-    Test = GenSSTest(testset,'SSTest')
-    return Train,Validation,Test
+    nei = GetNeighboor(trainset)
+    Train = GenSSTrain(julyset,'SSJuly',80000,7,nei)
+    Test = GenSSTest(testset,'SSTest',nei)
+    return Train,Test
 
