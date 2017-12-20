@@ -272,12 +272,12 @@ def GenSSTrain(df,filename,zeros,month,ep):
             d = np.random.randint(1,8)
             randHur = np.random.randint(0,12) * 2 + (d%2==0)
             randDate = dt.datetime(2017,8,d).strftime('%Y-%m-%d')
-        zeroData.append([np.random.randint(0,len(poi)),np.random.randint(0,len(poi)),randDate,randHur  ])
+        zeroData.append([np.random.randint(0,len(Jset)),np.random.randint(0,len(Jset)),randDate,randHur  ])
         zeroNum = zeroNum + 1
     zeroData = np.array(zeroData)
     Zset = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
-    Zset['start_geo_id'] = np.array( poi.iloc[zeroData[:,0].astype(int), 0] )
-    Zset['end_geo_id'] = np.array( poi.iloc[zeroData[:,1].astype(int), 0] )     # np.array : to ignore index
+    Zset['start_geo_id'] = Jset.iloc[zeroData[:,0].astype(int), 'start_geo_id'].values
+    Zset['end_geo_id'] = Jset.iloc[zeroData[:,1].astype(int), 'end_geo_id'].values
     Zset['create_date'] = zeroData[:,2]
     Zset['create_hour'] = zeroData[:,3].astype(int)
     Jset = Jset.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0) #合并随机0数据
