@@ -276,8 +276,8 @@ def GenSSTrain(df,filename,zeros,month,ep):
         zeroNum = zeroNum + 1
     zeroData = np.array(zeroData)
     Zset = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
-    Zset['start_geo_id'] = Jset.iloc[zeroData[:,0].astype(int), 'start_geo_id'].values
-    Zset['end_geo_id'] = Jset.iloc[zeroData[:,1].astype(int), 'end_geo_id'].values
+    Zset['start_geo_id'] = Jset.loc[zeroData[:,0].astype(int), 'start_geo_id'].values
+    Zset['end_geo_id'] = Jset.loc[zeroData[:,1].astype(int), 'end_geo_id'].values
     Zset['create_date'] = zeroData[:,2]
     Zset['create_hour'] = zeroData[:,3].astype(int)
     Jset = Jset.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0) #合并随机0数据

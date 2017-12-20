@@ -8,7 +8,7 @@ from xgboost import XGBRegressor
 
 from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
 
-from mlxtend.regressor  import StackingCVRegressor
+from mlxtend.regressor  import StackingCVRegressor, StackingRegressor
 
 def saveResult(filename, yp):
     result = pd.DataFrame()
@@ -24,11 +24,11 @@ def GenResult(X,Y,TX):
         pa
         ]
     meta = XGBRegressor()
-    stack = StackingCVRegressor(regressors = models,meta_regressor = meta)
+    stack = StackingRegressor(regressors = models,meta_regressor = meta,verbose = 4)
 
-    params = {'xgbr__max_depth':range(4,40),
-              'pa_C':[0.001,0.01,0.1,0,10,100,1000],
-              'meta-xgbregressor__max_depth':range(4,20)
+    params = {'xgbregressor__max_depth':range(4,40,3),
+              'passiveaggressiveregressor__C':[0.001,0.01,0.1,0,10,100,1000],
+              'meta-xgbregressor__max_depth':range(4,20,2)
         }
 
     grid = GridSearchCV(estimator = stack,param_grid = params,refit = True)
@@ -61,7 +61,7 @@ def stratifiedSampling(group):
 
 if __name__ == "__main__":
     Train, Test = SSSet()
-    Train = Train.groupby('count').apply(stratifiedSampling)
+    #Train = Train.groupby('count').apply(stratifiedSampling)
     Train = Train.drop(['-9','-7','-5','-3','3','5','7','9'],axis = 1)
     Test = Test.drop(['-9','-7','-5','-3','3','5','7','9'],axis = 1)
     GenResult(Train.iloc[:,4:-1],Train.iloc[:,-1], Test.iloc[:,4:])
