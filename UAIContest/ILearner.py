@@ -6,8 +6,8 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.base import BaseEstimator, RegressorMixin
 
 class ILearner(object):
-
-    def score(self,YV,yp):
+    @staticmethod
+    def score(YV,yp):
         s = 0.0
         for i in range(len(yp)):
             s = s + math.fabs(yp[i]-YV[i])

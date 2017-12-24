@@ -245,11 +245,23 @@ def GetEveryPairData(df):
 def GetNeighboors(ep,start,end,date,hour,rng = 10):
     key = start+end
     if key not in ep:
-        return [0 for i in range(rng)]
+        return [0 for i in range(rng)]+[0,0]
     tmp = ep[key]
-    pos = (dt.datetime.strptime( date ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + hour
+
+    r = tmp.reshape((-1,24))
+    days = (dt.datetime.strptime( date ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days
+    wekInd = [q for q in range(1,40) if q % 7==days%7]  #exclude 6.30 && 8.8
+    wekMean = r[wekInd,hour].mean()
+    if np.isnan(wekMean):
+        wekMean = 0
+    #todo : how to deal with 0 value ?
+    dayMean = r[:,hour].mean()
+    if np.isnan(dayMean):
+        dayMean = 0
+
+    pos = days * 24 + hour
     ind = pos + 2*np.array(range(-rng//2,rng//2))+1
-    return list(tmp[ind])
+    return tmp[ind].tolist()+[wekMean,dayMean]
 
 
 def GenSSTrain(df,filename,zeros,month,ep):
@@ -287,7 +299,7 @@ def GenSSTrain(df,filename,zeros,month,ep):
     mat = Jset.values
     for i in range(len(mat)):
         near.append(GetNeighboors(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3],10))
-    Nset = pd.DataFrame(data = np.array(near),columns = [str(i) for i in range(-9,11,2)])
+    Nset = pd.DataFrame(data = np.array(near),columns = [str(i) for i in range(-9,11,2)]+['WeekMean','DayMean'])
 
     #基本特征
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
@@ -327,7 +339,7 @@ def GenSSTest(df,filename,ep):
     mat = df.values
     for i in range(len(mat)):
         near.append(GetNeighboors(ep,mat[i,1],mat[i,2],mat[i,3],mat[i,4],10))
-    Nset = pd.DataFrame(data = np.array(near),columns = [str(i) for i in range(-9,11,2)])
+    Nset = pd.DataFrame(data = np.array(near),columns = [str(i) for i in range(-9,11,2)]+['WeekMean','DayMean'])
 
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
