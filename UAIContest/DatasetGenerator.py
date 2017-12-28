@@ -245,7 +245,7 @@ def GetEveryPairData(df):
 def GetEstimate(ep,start,end,date,hour,rng = 10):
     key = start+end
     if key not in ep:
-        return [0 for i in range(rng)]+[0,0]
+        return 0
     tmp = ep[key]
     r = tmp.reshape((-1,24))
     l = r[:,hour]
