@@ -3,6 +3,7 @@ from DatasetGenerator import Synthe,testset,trainset, poi, weather,OutlierSet,SS
 import datetime as dt
 import numpy as np
 from sklearn.model_selection import KFold, GridSearchCV
+from sklearn.ensemble import GradientBoostingRegressor
 from ILearner import ILearner,Xgb
 from xgboost import XGBRegressor, plot_importance, plot_tree
 from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
@@ -23,43 +24,21 @@ def saveResult(filename, yp):
     result['count']=yp
     result.to_csv(filename+'.csv',index = False)
 
-def work(*params):
-    [id,X,Y,tx] = params
-    #todo : how to do if have small number of train samples ?
-    if len(Y)==0:
-        return 0
-    if len(Y)<=5:
-        return Y.mean()
-
-    optScore = 2*30
-    for d in range(3,10):
-        kf = KFold(5)
-        m = XGBRegressor(max_depth = d)
-        s = 0
-        for trainId,testId in kf.split(X):
-            m.fit( X.iloc[trainId,:].values,Y.iloc[trainId].values )
-            s = s +  np.linalg.norm(m.predict(X.iloc[testId,:].values)-Y.iloc[testId].values , ord = 1)/len(testId)
-        if s<optScore:
-            optModel = m
-            optScore = s
-    print('%s %d opt depth is %d, optScore is %f'%(dt.datetime.now(), id, optModel.max_depth, s/5))
-    return optModel.predict(tx.values.reshape(1,-1)).tolist()[0]
 
 
 def GenResult(X,Y,TX):
-    p = Pool(cpu_count()-1)
-    mat = testset.values
-    result = []
-    for i in range(len(testset)):
-        ind = (X['start_geo_id']==mat[i,1]) & (X['end_geo_id']==mat[i,2])
-        x = X[ind].iloc[:,4:]
-        y = Y[ind]
-        tx = TX.iloc[i,4:]
-        result.append( p.apply_async(work, (i,x,y,tx), callback = log_result) )
-    p.close()
-    p.join()
-    yp = [it.get() for it in result]
-    saveResult('5000xgb',yp)
+    featName = [ 'soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
+                 'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
+                 'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
+                 'weekday','hour' ]
+    estimate = X['estimate']
+    residual = X['count']-X['estimate']
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
+    m.fit(X[featName],residual)
+    residualY =  m.predict(TX[featName])
+    saveResult(residualY + TX['estimate'])
+
+
 
 
 def stratifiedSampling(group):
@@ -69,32 +48,33 @@ def stratifiedSampling(group):
         frac = 1
     return group.sample(frac = frac)
 
-def FeatureClean(df):
-    df['spoi'] = df.iloc[:,4:14].sum(1)     #sum of start poi
-    df['tpoi'] = df.iloc[:,14:24].sum(1)    #sum of end poi
-    return df
+## K-NN:
+'''
+    import pickle
+    D = pickle.load(open('EveryPair.pkl','rb'))
+    ans = []
+    mat = testset.values
+    K = 10
+    for i in range(len(mat)):
+        k = mat[i,1]+mat[i,2]
+        if k not in D:
+            ans.append(0)
+            continue
+        t = D[k]
+        days = (dt.datetime.strptime( mat[i,3],'%Y-%m-%d' )-dt.datetime(2017,6,30)).days
+        hur = mat[i,4]
+        vec = np.array( [ t[days*24+hur-1],t[days*24+hur+1] ] )
+        z = []
+        for j in range(2,32*24):
+            a1 = np.array( [t[j-2],t[j]] )
+            z.append( [ np.linalg.norm( a1-vec ,2 ), t[j-1] ] )
+        z = np.array( sorted(z, key = lambda x:x[0]) )
 
+        ans.append(z[:K,1].mean())
+    saveResult('1nn',ans)
+'''
 
 if __name__ == "__main__":
-    Train, Test = SSSet()
-    #Train = Train.groupby('count').apply(stratifiedSampling)
-    Train = FeatureClean(Train)
-    Test = FeatureClean(Test)
-    f = ['start_geo_id','end_geo_id','create_date','create_hour',\
-        'feels_like0','wind_scale0','humidity0','feels_like1','wind_scale1','humidity1','spoi','tpoi','weekday','hour','-1','1','WeekMean','DayMean']
-    GenResult(Train.loc[:,f],Train.loc[:,'count'], Test.loc[:,f])
+    Train,Test = SSSet()
+    GenResult(Train,Test)
 
-
-    #mat = testset.values
-    #import pickle
-    #D = pickle.load(open('EveryPair.pkl','rb'))
-    #x = []
-    #for i in range(len(testset)):
-    #    k = mat[i,1]+mat[i,2]
-    #    if k in D:
-    #        l = D[k]
-    #    else:
-    #        l = np.zeros(40*24)
-    #    x.append( l[18*24 : 19*24].tolist() + l[32*24:39*24].tolist() )
-    #st = pd.DataFrame(x,columns = [ '7-18 '+str(i) for i in range(24) ] + ['8-'+str(i)+' '+str(j) for i in range(1,8) for j in range(24)])
-    #st.to_csv('718+8.csv')

@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.svm import SVR
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.model_selection import KFold
 
 class ILearner(object):
     @staticmethod
@@ -36,3 +37,24 @@ class UseMean(ILearner,BaseEstimator):
 
 class MXgb(ILearner,BaseEstimator):
     pass
+
+class Stacking(ILearner):
+    def __init__(self, models, metaModel):
+        self.models = model
+        self.metaModel = metaModel
+    def fit(self,X,Y):
+        kf = KFold(5)
+        FirstLayerX = np.zeros((len(X),len(self.models)))
+        FirstLayerY = np.zeros((len(Y),))
+        for i,(trainId,testId) in kf.split(X):
+            XTrain,XTest = X[trainId,:],X[testId,:]
+            YTrain,YTest = Y[trainId],Y[testId]
+            for m in self.models:
+                m.fit(XTrain,YTrain)
+                FirstLayerX[testId,:] = m.predict(XTest)
+                FirstLayerY[testId] = YTest
+        self.metaModel.fit(FirstLayerX,FirstLayerY)
+
+    def predict(self,X):
+        return self.metaModel.predict(X)
+
