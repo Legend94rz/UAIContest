@@ -248,11 +248,22 @@ def GetEstimate(ep,start,end,date,hour,rng = 10):
         return 0
     tmp = ep[key]
     r = tmp.reshape((-1,24))
+
     l = r[:,hour]
-    dayMean = l[l>0].mean()
-    if np.isnan(dayMean):
-        dayMean = 0
-    return dayMean
+    meanOnHurByDay = l.mean()
+    if np.isnan(meanOnHurByDay):
+        meanOnHurByDay = 0
+
+    l = r[:,(hour-1)%24]
+    meanOnPreByDay = l.mean()
+    if np.isnan( meanOnPreByDay ):
+        meanOnPreByDay = 0
+
+    l = r[:,(hour+1)%24]
+    meanOnNxtByDay = l.mean()
+    if np.isnan( meanOnNxtByDay ):
+        meanOnNxtByDay = 0
+    return [meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 , meanOnHurByDay]
 
 def GenSSTrain(df,filename,zeros,month,ep):
     try:
@@ -290,7 +301,7 @@ def GenSSTrain(df,filename,zeros,month,ep):
     mat = Jset.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3]))
-    Jset['estimate'] = estimate
+    Eset = pd.DataFrame(estimate,columns = ['estimate','hisMean'])
 
     #基本特征
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
@@ -315,7 +326,7 @@ def GenSSTrain(df,filename,zeros,month,ep):
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
                                    'weekday','hour'\
                                    ],data = np.array(X))
-    Tset = pd.concat([ Jset[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Jset[['estimate','count']] ],axis = 1)
+    Tset = pd.concat([ Jset[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Eset, Jset['count'] ],axis = 1)
     Tset.to_csv(filename + '.csv',index = False)
     return Tset
 
@@ -330,7 +341,7 @@ def GenSSTest(df,filename,ep):
     mat = df.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,1],mat[i,2],mat[i,3],mat[i,4]))
-    df['estimate'] = estimate
+    Eset = pd.DataFrame(estimate,columns = ['estimate','hisMean'])
 
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
@@ -352,7 +363,7 @@ def GenSSTest(df,filename,ep):
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
                                    'weekday','hour'\
                                    ],data = np.array(X))
-    Tset = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, df['estimate']], axis = 1)
+    Tset = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Eset], axis = 1)
     Tset.to_csv(filename + '.csv',index = False)
     return Tset
 

@@ -24,22 +24,24 @@ def saveResult(filename, yp):
     result['count']=yp
     result.to_csv(filename+'.csv',index = False)
 
-
-
 def GenResult(X,TX):
-    featName = [ 'soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
-                 'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
-                 'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
-                 'weekday','hour' ]
+    X['spoi'] = X[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
+    X['tpoi'] = X[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+    TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
+    TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+    featName = [ 'spoi','tpoi',
+                 'MyCode0','feels_like0','wind_scale0','humidity0',\
+                 'estimate','hisMean',\
+                 'weekday','hour']
     estimate = X['estimate']
     residual = X['count']-X['estimate']
     m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
     m.fit(X[featName],residual)
     residualY =  m.predict(TX[featName])
-    saveResult(residualY + TX['estimate'])
+    GBRresult = residualY + TX['estimate']
 
-
-
+    w = pd.read_csv('w.csv')['count']
+    saveResult('GBR',GBRresult.values*0.6 + w.values*0.4)
 
 def stratifiedSampling(group):
     if group.name==0:
