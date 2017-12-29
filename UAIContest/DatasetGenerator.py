@@ -245,7 +245,7 @@ def GetEveryPairData(df):
 def GetEstimate(ep,start,end,date,hour,rng = 10):
     key = start+end
     if key not in ep:
-        return 0
+        return [0,0]
     tmp = ep[key]
     r = tmp.reshape((-1,24))
 
@@ -271,7 +271,7 @@ def GenSSTrain(df,filename,zeros,month,ep):
     except FileNotFoundError:
         pass
     Jset = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
-    
+
     #生成0数据
     zeroNum = 0
     zeroData = []
@@ -301,7 +301,7 @@ def GenSSTrain(df,filename,zeros,month,ep):
     mat = Jset.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3]))
-    Eset = pd.DataFrame(estimate,columns = ['estimate','hisMean'])
+    Eset = pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean'])
 
     #基本特征
     Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
@@ -341,7 +341,7 @@ def GenSSTest(df,filename,ep):
     mat = df.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,1],mat[i,2],mat[i,3],mat[i,4]))
-    Eset = pd.DataFrame(estimate,columns = ['estimate','hisMean'])
+    Eset = pd.DataFrame(np.array( estimate ),columns = ['estimate','hisMean'])
 
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
