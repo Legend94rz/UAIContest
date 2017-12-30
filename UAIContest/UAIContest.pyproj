@@ -27,6 +27,7 @@
     <Compile Include="ILearner.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="residual.py" />
     <Compile Include="UAIContest.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
