@@ -27,21 +27,28 @@ def saveResult(filename, yp):
 def GenResult(X,TX):
     X['spoi'] = X[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     X['tpoi'] = X[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+
     TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+
     featName = [ 'spoi','tpoi',
-                 'MyCode0','feels_like0','wind_scale0','humidity0',\
                  'estimate','hisMean',\
-                 'weekday','hour']
-    estimate = X['estimate']
-    residual = X['count']-X['estimate']
+                 'weekday','day','hour']
+    X['residual'] = X['count']-X['estimate']
     m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
-    m.fit(X[featName],residual)
-    residualY =  m.predict(TX[featName])
-    GBRresult = residualY + TX['estimate']
+    m.fit(X[featName],X['residual'])
+    GBRresult = m.predict(TX[featName]) + TX['estimate']
 
     w = pd.read_csv('w.csv')['count']
-    saveResult('GBR',GBRresult.values*0.6 + w.values*0.4)
+    result = np.ceil( GBRresult.values*0.6 + w.values*0.4 )
+    '''
+    #use 7.18 to predict 8.2
+    x718 = X[(X['create_date']=='2017-07-18')]
+    tx82 = TX[(TX['create_date']=='2017-08-02')]
+    featName = [ 'spoi','tpoi','estimate','hisMean','hour', '-1','1']
+    '''
+
+    saveResult('GBR',result)
 
 def stratifiedSampling(group):
     if group.name==0:

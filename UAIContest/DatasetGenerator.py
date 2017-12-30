@@ -242,135 +242,109 @@ def GetEveryPairData(df):
     pickle.dump(D,open('EveryPair.pkl','wb'))
     return D
 
-def GetEstimate(ep,start,end,date,hour,rng = 10):
+def GetEstimate(ep,start,end,date,hour,rng = 2):
     key = start+end
-    if key not in ep:
-        return [0,0]
-    tmp = ep[key]
-    r = tmp.reshape((-1,24))
+    if key in ep:
+        tmp = ep[key]
+        pos = (dt.datetime.strptime( date ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + hour
+        ind = pos + 2*np.array(range(-rng//2,rng//2))+1
+        nei = list(tmp[ind])
 
-    l = r[:,hour]
-    meanOnHurByDay = l.mean()
-    if np.isnan(meanOnHurByDay):
-        meanOnHurByDay = 0
+        r = tmp.reshape((-1,24))
+        l = r[:,hour]
+        #todo :左右均值的天数不对
+        meanOnHurByDay = l.sum()/(34 + (hour+1)%2)
 
-    l = r[:,(hour-1)%24]
-    meanOnPreByDay = l.mean()
-    if np.isnan( meanOnPreByDay ):
-        meanOnPreByDay = 0
+        l = r[:,(hour-1)%24]
+        meanOnPreByDay = l.sum()/(34 + (hour+1)%2)
 
-    l = r[:,(hour+1)%24]
-    meanOnNxtByDay = l.mean()
-    if np.isnan( meanOnNxtByDay ):
-        meanOnNxtByDay = 0
-    return [meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 , meanOnHurByDay]
+        l = r[:,(hour+1)%24]
+        meanOnNxtByDay = l.mean()/(34 + (hour+1)%2)
+        return [np.ceil( meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 ), meanOnHurByDay] + nei
+    else:
+        return [0,0]+[0]*rng
 
-def GenSSTrain(df,filename,zeros,month,ep):
-    try:
-        return pd.read_csv(filename + '.csv')
-    except FileNotFoundError:
-        pass
-    Jset = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
-
-    #生成0数据
-    zeroNum = 0
-    zeroData = []
-    while zeroNum < zeros:
-        if (zeroNum + 1) % 5000 == 0:
-            print('%s gened %d rand Samples\n' % (dt.datetime.now(),zeroNum + 1))
-        if month == 7:
-            randDate = dt.datetime(2017,7,np.random.randint(1,32)).strftime('%Y-%m-%d')
-            randHur = np.random.randint(0,24)
-        else:
-            d = np.random.randint(1,8)
-            randHur = np.random.randint(0,12) * 2 + (d%2==0)
-            randDate = dt.datetime(2017,8,d).strftime('%Y-%m-%d')
-        zeroData.append([np.random.randint(0,len(Jset)),np.random.randint(0,len(Jset)),randDate,randHur  ])
-        zeroNum = zeroNum + 1
-    zeroData = np.array(zeroData)
-    Zset = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
-    Zset['start_geo_id'] = Jset.loc[zeroData[:,0].astype(int), 'start_geo_id'].values
-    Zset['end_geo_id'] = Jset.loc[zeroData[:,1].astype(int), 'end_geo_id'].values
-    Zset['create_date'] = zeroData[:,2]
-    Zset['create_hour'] = zeroData[:,3].astype(int)
-    Jset = Jset.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0) #合并随机0数据
-    #now jset is : start, end, date, hour, count
-
-    #计算估计值
+def GenENSet(df,ep):
+    #估计值、近邻特征
     estimate = []
-    mat = Jset.values
+    mat = df.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3]))
-    Eset = pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean'])
+    return pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean','-1','1'])
 
+def GenBasicSet(df):
     #基本特征
-    Jset['datetime'] = pd.to_datetime(Jset['create_date'] + ' ' + Jset['create_hour'].astype('str') + ':00')
-    Jset['weekday'] = Jset['datetime'].map(lambda x: x.weekday() + 1)
-    poiOfStart = np.array(Jset['start_geo_id'].apply(getPOI))
-    poiOfEnd = np.array(Jset['end_geo_id'].apply(getPOI))
-    wthr = Jset['datetime'].apply(getWeather)
-    wdAndHur = np.array(Jset[['weekday','create_hour']])
-    X = []
-    for i in range(len(Jset)):
+    df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
+    df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
+    df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
+    poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
+    poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
+    wthr = np.array(df['datetime'].apply(getWeather))
+    dayAndHur = np.array(df[['weekday','day','create_hour']])
+    X=[]
+    for i in range(len(df)):
         if i % 10000 == 0:
             print('%s proceed %i Samples\n' % (dt.datetime.now(),i))
         t = []
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
-        t.extend(wdAndHur[i])
+        t.extend(dayAndHur[i])
         X.append(t)
     Tset = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
-                                   'weekday','hour'\
+                                   'weekday','day','hour'\
                                    ],data = np.array(X))
-    Tset = pd.concat([ Jset[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Eset, Jset['count'] ],axis = 1)
-    Tset.to_csv(filename + '.csv',index = False)
     return Tset
 
-def GenSSTest(df,filename,ep):
+def GenSSData(df,filename,ep,forTrain = True):
     try:
-        return pd.read_csv(filename + '.csv')
+        return pd.read_csv(filename+'.csv')
     except FileNotFoundError:
         pass
 
-    #计算估计值
-    estimate = []
-    mat = df.values
-    for i in range(len(mat)):
-        estimate.append(GetEstimate(ep,mat[i,1],mat[i,2],mat[i,3],mat[i,4]))
-    Eset = pd.DataFrame(np.array( estimate ),columns = ['estimate','hisMean'])
-
-    df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
-    df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
-    poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
-    poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
-    wthr = np.array(df['datetime'].apply(getWeather))
-    wdAndHur = np.array(df[['weekday','create_hour']])
-    X=[]
-    for i in range(len(df)):
-        t = []
-        t.extend(poiOfStart[i])
-        t.extend(poiOfEnd[i])
-        t.extend(wthr[i])
-        t.extend(wdAndHur[i])
-        X.append(t)
-    Tset = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
-                                   'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
-                                   'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
-                                   'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
-                                   'weekday','hour'\
-                                   ],data = np.array(X))
-    Tset = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, Eset], axis = 1)
+    if forTrain:
+        zeros = 80000;  month = 7;
+        df = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
+        #生成0数据
+        zeroNum = 0
+        zeroData = []
+        while zeroNum < zeros:
+            if (zeroNum + 1) % 5000 == 0:
+                print('%s gened %d rand Samples\n' % (dt.datetime.now(),zeroNum + 1))
+            if month == 7:
+                randDate = dt.datetime(2017,7,np.random.randint(1,32)).strftime('%Y-%m-%d')
+                randHur = np.random.randint(0,24)
+            else:
+                d = np.random.randint(1,8)
+                randHur = np.random.randint(0,12) * 2 + (d%2==0)
+                randDate = dt.datetime(2017,8,d).strftime('%Y-%m-%d')
+            zeroData.append([np.random.randint(0,len(df)),np.random.randint(0,len(df)),randDate,randHur  ])
+            zeroNum = zeroNum + 1
+        zeroData = np.array(zeroData)
+        Zset = pd.DataFrame(columns = ['start_geo_id','end_geo_id','create_date','create_hour'])
+        Zset['start_geo_id'] = df.loc[zeroData[:,0].astype(int), 'start_geo_id'].values
+        Zset['end_geo_id'] = df.loc[zeroData[:,1].astype(int), 'end_geo_id'].values
+        Zset['create_date'] = zeroData[:,2]
+        Zset['create_hour'] = zeroData[:,3].astype(int)
+        df = df.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0) #合并随机0数据
+        #now df is : start, end, date, hour, count
+    else:
+        df = df.drop(['test_id'],axis = 1)
+    ENset = GenENSet(df,ep)
+    Tset = GenBasicSet(df)
+    if forTrain:
+        Tset = pd.concat([ df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, ENset, df['count'] ],axis = 1)
+    else:
+        Tset = pd.concat([df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, ENset], axis = 1)
     Tset.to_csv(filename + '.csv',index = False)
     return Tset
 
 def SSSet():
     ep = GetEveryPairData(trainset)
-    Train = GenSSTrain(julyset,'SSJuly',80000,7,ep)
-    #todo gen validation set
-    Test = GenSSTest(testset,'SSTest',ep)
+    Train = GenSSData(julyset,'SSTrain',ep,True)
+    Test = GenSSData(testset,'SSTest',ep,False)
     return Train,Test
 
