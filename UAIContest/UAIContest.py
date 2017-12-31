@@ -31,24 +31,28 @@ def GenResult(X,TX):
     TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
-    featName = [ 'spoi','tpoi',
+    featName = ['spoi','tpoi',
                  'estimate','hisMean',\
                  'weekday','day','hour']
-    X['residual'] = X['count']-X['estimate']
+    X['residual'] = X['count'] - X['estimate']
     m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
     m.fit(X[featName],X['residual'])
     GBRresult = m.predict(TX[featName]) + TX['estimate']
 
     w = pd.read_csv('w.csv')['count']
-    result = np.ceil( GBRresult.values*0.6 + w.values*0.4 )
-    '''
+    result = np.ceil(GBRresult.values * 0.6 + w.values * 0.4)
     #use 7.18 to predict 8.2
-    x718 = X[(X['create_date']=='2017-07-18')]
-    tx82 = TX[(TX['create_date']=='2017-08-02')]
-    featName = [ 'spoi','tpoi','estimate','hisMean','hour', '-1','1']
-    '''
-
+    featName = ['spoi', 'tpoi', 'estimate','hisMean','hour','-1','1']
+    x718 = X[(X['create_date'] == '2017-07-18')]
+    tx82 = TX[(TX['create_date'] == '2017-08-02')]
+    m2 = GradientBoostingRegressor(loss = 'lad',n_estimators = 100,max_depth=100,learning_rate =0.1,verbose = 2)
+    R82 = m2.predict(tx82[featName])+TX['estimate']
+    result[TX['create_date']=='2017-08-02'] =  result[TX['create_date']=='2017-08-02']*0.5 + R82*0.5
     saveResult('GBR',result)
+
+    p = pd.DataFrame()
+    p['r82']=R82
+    p.to_csv('r82.csv')
 
 def stratifiedSampling(group):
     if group.name==0:
