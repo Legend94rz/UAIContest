@@ -251,14 +251,14 @@ def GetEstimate(ep,start,end,date,hour,rng = 2):
         nei = list(tmp[ind])
 
         r = tmp.reshape((-1,24))
-        l = r[:,hour]
+        l = r[1:-1,hour]
         #todo :左右均值的天数不对
         meanOnHurByDay = l.sum()/(34 + (hour+1)%2)
 
-        l = r[:,(hour-1)%24]
+        l = r[1:-1,(hour-1)%24]
         meanOnPreByDay = l.sum()/(34 + (hour+1)%2)
 
-        l = r[:,(hour+1)%24]
+        l = r[1:-1,(hour+1)%24]
         meanOnNxtByDay = l.mean()/(34 + (hour+1)%2)
         return [np.ceil( meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 ), meanOnHurByDay] + nei
     else:
@@ -275,8 +275,8 @@ def GenENSet(df,ep):
 def GenBasicSet(df):
     #基本特征
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
-    df['weekday'] = df['datetime'].map(lambda x: x.weekday() + 1)
-    df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
+    df['weekday'] = df['datetime'].map(lambda x: x.weekday())
+    df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,7,1)).days)
     poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
     poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
     wthr = np.array(df['datetime'].apply(getWeather))
@@ -306,10 +306,11 @@ def GenSSData(df,filename,ep,forTrain = True):
         pass
 
     if forTrain:
-        zeros = 80000;  month = 7;
+        zeros = 0;  month = 7;
         df = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
         #生成0数据
-        zeroNum = 0
+        '''
+        zeroNum = 80000
         zeroData = []
         while zeroNum < zeros:
             if (zeroNum + 1) % 5000 == 0:
@@ -330,6 +331,7 @@ def GenSSData(df,filename,ep,forTrain = True):
         Zset['create_date'] = zeroData[:,2]
         Zset['create_hour'] = zeroData[:,3].astype(int)
         df = df.merge(how='outer',right = Zset,on = ['start_geo_id','end_geo_id','create_date','create_hour']).fillna(0) #合并随机0数据
+        '''
         #now df is : start, end, date, hour, count
     else:
         df = df.drop(['test_id'],axis = 1)
@@ -344,7 +346,7 @@ def GenSSData(df,filename,ep,forTrain = True):
 
 def SSSet():
     ep = GetEveryPairData(trainset)
-    Train = GenSSData(julyset,'SSTrain',ep,True)
+    Train = GenSSData(trainset,'SSTrain',ep,True)
     Test = GenSSData(testset,'SSTest',ep,False)
     return Train,Test
 

@@ -254,7 +254,7 @@ def get_poi_dict():
 
 def train_set_generator(data_set, preds,preds2,avghour,avghourlater,avghourearly,poi_dict):
     dateFeature= getDateFeature() # 0-37
-    res_train_set = copy.deepcopy(data_set)
+    res_train_set = data_set
     Y = [0]*len(res_train_set)
     for x in range(len(res_train_set)):
         Y[x] = res_train_set[x].count - preds[x]
@@ -291,7 +291,7 @@ def MyRegression(xTrain,yTrain,xVal,yVal,xTest,learner='gdrt'):
         clf = gbr(loss='lad',
             n_estimators=300, max_depth=300,
             learning_rate=0.1, min_samples_leaf=256,
-            min_samples_split=256)
+            min_samples_split=256,verbose = 2)
         '''
         clf = gbr(loss='lad')
         '''
