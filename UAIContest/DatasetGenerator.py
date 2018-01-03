@@ -12,7 +12,7 @@ poi = pd.read_csv('.\\Data\\poi.csv',encoding = 'ansi', header=None, names = lis
 weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
 weather['date'] = weather['date'].map(lambda x:dt.datetime.strptime(x,'%Y/%m/%d %H:%M'))
-weather['MyCode'] = weather['text'].map({'晴':1,'多云':2,'阴':2,'阵雨':3,'雷阵雨':3,'小雨':3,'中雨':4,'大雨':5})
+weather['MyCode'] = weather['text'].map({'晴':8,'多云':7,'阴':6,'阵雨':5,'雷阵雨':4,'小雨':3,'中雨':2,'大雨':1})
 weather = weather.fillna(0)
 
 trainset = pd.concat([julyset, augset])
@@ -246,23 +246,24 @@ def GetEstimate(ep,start,end,date,hour,rng = 2):
     key = start+end
     if key in ep:
         tmp = ep[key]
-        pos = (dt.datetime.strptime( date ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + hour
+        date = dt.datetime.strptime( date ,'%Y-%m-%d' )
+        days = (date-dt.datetime(2017,6,30)).days
+        pos = days * 24 + hour
         ind = pos + 2*np.array(range(-rng//2,rng//2))+1
         nei = list(tmp[ind])
 
         r = tmp.reshape((-1,24))
-        l = r[1:-1,hour]
-        #todo :左右均值的天数不对
-        meanOnHurByDay = l.sum()/(34 + (hour+1)%2)
+        meanOnHurByDay = r[1:-1,hour].sum()/(34 + (hour+1)%2)
 
-        l = r[1:-1,(hour-1)%24]
-        meanOnPreByDay = l.sum()/(34 + (hour+1)%2)
+        meanOnPreByDay = r[1:-1,(hour-1)%24].sum()/(34 + (hour)%2)
 
-        l = r[1:-1,(hour+1)%24]
-        meanOnNxtByDay = l.mean()/(34 + (hour+1)%2)
-        return [np.ceil( meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 ), meanOnHurByDay] + nei
+        meanOnNxtByDay = r[1:-1,(hour+1)%24].sum()/(34 + (hour)%2)
+
+        meanOnHurByWeek = r[(days-1)%7::7].sum() / ( 5+( days%7>=1 and days%7<=3 ) - (date.day%2 == hour%2) )
+
+        return [np.ceil( meanOnHurByDay*0.6 + (meanOnNxtByDay+meanOnPreByDay)*0.2 ), meanOnHurByDay, meanOnHurByWeek] + nei
     else:
-        return [0,0]+[0]*rng
+        return [0,0,0]+[0]*rng
 
 def GenENSet(df,ep):
     #估计值、近邻特征
@@ -270,17 +271,18 @@ def GenENSet(df,ep):
     mat = df.values
     for i in range(len(mat)):
         estimate.append(GetEstimate(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3]))
-    return pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean','-1','1'])
+    return pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean','weekMean','-1','1'])
 
 def GenBasicSet(df):
     #基本特征
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
-    df['weekday'] = df['datetime'].map(lambda x: x.weekday())
-    df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,7,1)).days)
+    df['weekday'] = df['datetime'].map(lambda x: x.isoweekday())
+    df['week'] = df['weekday'].map(lambda x: x//7+1)
+    df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
     poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
     poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
     wthr = np.array(df['datetime'].apply(getWeather))
-    dayAndHur = np.array(df[['weekday','day','create_hour']])
+    dayAndHur = np.array(df[['weekday','day','week','create_hour']])
     X=[]
     for i in range(len(df)):
         if i % 10000 == 0:
@@ -295,7 +297,7 @@ def GenBasicSet(df):
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
-                                   'weekday','day','hour'\
+                                   'week','weekday','day','hour'\
                                    ],data = np.array(X))
     return Tset
 

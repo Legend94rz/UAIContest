@@ -3,7 +3,7 @@ from DatasetGenerator import Synthe,testset,trainset, poi, weather,OutlierSet,SS
 import datetime as dt
 import numpy as np
 from sklearn.model_selection import KFold, GridSearchCV
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from ILearner import ILearner,Xgb
 from xgboost import XGBRegressor, plot_importance, plot_tree
 from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
@@ -25,38 +25,45 @@ def saveResult(filename, yp):
     result.to_csv(filename+'.csv',index = False)
 
 def GenResult(X,TX):
+    #X = X.groupby('count').apply(stratifiedSampling)
     X['spoi'] = X[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     X['tpoi'] = X[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
     TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
-    featName = ['spoi','tpoi',
-                 'estimate','hisMean',\
-                 'weekday','day','hour']
+    featName = ['spoi','tpoi','MyCode0','feels_like0','wind_scale0','humidity0',
+                 'estimate','hisMean','weekMean',\
+                 'week','weekday','day','hour','-1','1']
     X['residual'] = X['count'] - X['estimate']
     m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
+    #m = XGBRegressor(n_estimators = 300, n_jobs = 3, max_depth = 10, learning_rate = 0.1)
     m.fit(X[featName],X['residual'])
     GBRresult = m.predict(TX[featName]) + TX['estimate']
-
-    w = pd.read_csv('w.csv')['count']
-    result = np.ceil(GBRresult.values * 0.6 + w.values * 0.4)
+    #w = pd.read_csv('w.csv')['count']
+    #result = np.ceil(GBRresult.values * 0.6 + w.values * 0.4)
+    saveResult('GBR_nomerge',GBRresult.values)
+    #plot_importance(m)
+    #plt.show()
+    '''
     #use 7.18 to predict 8.2
     featName = ['spoi', 'tpoi', 'estimate','hisMean','hour','-1','1']
     x718 = X[(X['create_date'] == '2017-07-18')]
     tx82 = TX[(TX['create_date'] == '2017-08-02')]
-    m2 = GradientBoostingRegressor(loss = 'lad',n_estimators = 100,max_depth=100,learning_rate =0.1,verbose = 2)
-    R82 = m2.predict(tx82[featName])+TX['estimate']
+    m2 = GradientBoostingRegressor(loss = 'lad',n_estimators = 100,max_depth=50,learning_rate =0.1,verbose = 2)
+    m2.fit(x718[featName],x718['residual'])
+    R82 = m2.predict(tx82[featName])+tx82['estimate']
     result[TX['create_date']=='2017-08-02'] =  result[TX['create_date']=='2017-08-02']*0.5 + R82*0.5
     saveResult('GBR',result)
 
     p = pd.DataFrame()
     p['r82']=R82
     p.to_csv('r82.csv')
+    '''
 
 def stratifiedSampling(group):
-    if group.name==0:
-        frac = 0.01
+    if group.name==1:
+        frac = 0.85
     else:
         frac = 1
     return group.sample(frac = frac)
