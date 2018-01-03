@@ -1,5 +1,5 @@
 import pandas as pd
-from DatasetGenerator import Synthe,testset,trainset, poi, weather,OutlierSet,SSSet
+from DatasetGenerator import testset, trainset, SSSet
 import datetime as dt
 import numpy as np
 from sklearn.model_selection import KFold, GridSearchCV
@@ -32,11 +32,11 @@ def GenResult(X,TX):
     TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
-    featName = ['spoi','tpoi','MyCode0','feels_like0','wind_scale0','humidity0',
+    featName = ['spoi','tpoi','feels_like0','wind_scale0','humidity0',
                  'estimate','hisMean','weekMean',\
-                 'week','weekday','day','hour','-1','1']
+                 'weekday','day','hour','-1','1']
     X['residual'] = X['count'] - X['estimate']
-    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, min_samples_leaf = 256, min_samples_split=256,verbose = 2)
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2)
     #m = XGBRegressor(n_estimators = 300, n_jobs = 3, max_depth = 10, learning_rate = 0.1)
     m.fit(X[featName],X['residual'])
     GBRresult = m.predict(TX[featName]) + TX['estimate']

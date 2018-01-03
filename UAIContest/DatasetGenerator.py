@@ -16,55 +16,6 @@ weather['MyCode'] = weather['text'].map({'晴':8,'多云':7,'阴':6,'阵雨':5,'
 weather = weather.fillna(0)
 
 trainset = pd.concat([julyset, augset])
-### tool kits
-finished = 0
-def log_result(result):
-    global finished
-    finished = finished + 1
-    if finished % 100 == 0:
-        print("%s finished %d\n" % (dt.datetime.now(),finished))
-def GenTrainingSet(filename, interface):
-    try:
-        dic = pickle.load(open(filename + '-train.pkl','rb'))
-        return dic['X'],dic['Y']
-    except IOError:
-        pass
-    print("Gening Training set...\n")
-    global finished
-    finished = 0
-    result = []
-    pool = Pool(cpu_count() - 1)
-    for i in range(len(testset)):
-        q = interface(pool, tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']])) 
-        if q != None:
-            result.append(q)
-    pool.close()
-    pool.join()
-    X = [result[i].get()[0] for i in range(len(result))]
-    Y = [result[i].get()[1] for i in range(len(result))]
-    pickle.dump({'X':X,'Y':Y},open(filename + '-train.pkl','wb'))
-    return X,Y
-def GenTestSet(filename, interface):
-    try:
-        tdic = pickle.load(open(filename + '-test.pkl','rb'))
-        return tdic['X']
-    except IOError:
-        pass
-    print("Gening Test set...\n")
-    global finished
-    finished = 0
-    result = []
-    pool = Pool(cpu_count() - 1)
-    for i in range(len(testset)):
-        q = interface(pool , tuple(testset.loc[i,['start_geo_id','end_geo_id','create_date','create_hour']])) 
-        if q != None:
-            result.append(q)
-
-    pool.close()
-    pool.join()
-    TX = [result[i].get()[0] for i in range(len(result))]
-    pickle.dump({'X':TX},open(filename + '-test.pkl','wb'))
-    return TX
 
 #10 element
 poiCatch = {}
@@ -96,120 +47,14 @@ def getWeather(time, howManyHalfHour=4):
         time = time + dt.timedelta(minutes = 30)
     return result
 
-def flatten(l):    
-    for el in l:    
-        if hasattr(el, "__iter__") and not isinstance(el, str):    
-            for sub in flatten(el):    
-                yield sub    
-        else:    
-            yield el   
-
-
-####    Gen for split 012 ###########
-def Split012ForTrain(*x):
-    feature = []
-    Y = []
-    time = dt.datetime.strptime(x[2],'%Y-%m-%d') + dt.timedelta(hours=int(x[3]))
-    timeL = time + dt.timedelta(hours=-1)
-    timeR = time + dt.timedelta(hours=1)
-    for k in range(3):
-        tmpset = trainset[(trainset['start_geo_id'] == x[0]) & (trainset['end_geo_id'] == x[1]) & (trainset['status'] == k)]
-        feature.append(len(tmpset[(tmpset['create_hour'] == timeL.hour) & (tmpset['create_date'] == timeL.strftime('%Y-%m-%d'))]))
-        feature.append(len(tmpset[(tmpset['create_hour'] == timeR.hour) & (tmpset['create_date'] == timeR.strftime('%Y-%m-%d'))]))
-        tmp = tmpset[tmpset['create_hour'] == x[3]].groupby('create_date').size().reset_index(name='count')
-        tmp = tmp[tmp['count'] <= 20]
-        if len(tmp) > 0:
-            feature.append(tmp[tmp['count'] <= 20]['count'].mean())
+ids={}
+def hash(id,get=False):
+    if id not in ids:
+        if not get:
+            ids[id]=len(ids)+1
         else:
-            feature.append(0)
-    return (feature,Y)
-def Split012ForTest(*x):
-    #x =
-    #p[1].loc[p[2],['start_geo_id','end_geo_id','create_date','create_hour']]
-    feature = [(dt.datetime.strptime(x[2],'%Y-%m-%d') - dt.datetime(2017,7,1)).days * 24 + x[3]]
-    return feature
-def Split012():
-    def aplyTrain(pool,params):
-        return pool.apply_async(Split012ForTrain,params,callback = log_result)
-    def aplyTest(pool,params):
-        return pool.apply_async(Split012ForTest,params,callback = log_result)
-    X,Y = GenTrainingSet('split', aplyTrain)
-    TX = GenTestSet('split',aplyTest)
-    return X,Y,TX
-###########################################
-
-### feature is 3 vector of (31*24+7*12)
-def SyntheSet(*x):
-    feature = []
-    Y = []
-    tmpset = trainset[(trainset['start_geo_id'] == x[0]) & (trainset['end_geo_id'] == x[1])]
-    for k in range(3):
-        t = [0 for i in range(31 * 24 + 7 * 12)]
-        tmp = tmpset[tmpset['status'] == k].groupby(['create_date','create_hour']).size().reset_index(name='count')
-        for i in range(len(tmp)):
-            days = (dt.datetime.strptime(tmp.loc[i,'create_date'],'%Y-%m-%d') - dt.datetime(2017,7,1)).days
-            if days < 31:
-                t[days * 24 + tmp.loc[i,'create_hour']] = tmp.loc[i,'count']
-            else:
-                t[24 * 31 + (days - 31) * 12 + int(tmp.loc[i,'create_hour'] // 2)] = tmp.loc[i,'count']
-        feature.append(t)
-    return (feature,Y)
-
-def Synthe():
-    def aply(pool,params):
-        return pool.apply_async(SyntheSet,params,callback = log_result)
-    X,Y = GenTrainingSet('synthe',aply)
-    return X,Y,X
-
-
-### for outlier ###
-def OutlierForTraining(*x):
-    start = x[0]
-    end = x[1]
-    tmp = trainset[(trainset['start_geo_id'] == start) & (trainset['end_geo_id'] == end)].groupby(['create_date','create_hour']).size().reset_index(name='count')
-    left,right,mid,time = [],[],[],[]
-    for i in range(1,len(tmp) - 1):
-        if tmp.loc[i,'count'] > 3 * tmp.loc[i - 1,'count'] and tmp.loc[i,'count'] > 3 * tmp.loc[i + 1,'count']:
-            left.append(tmp.loc[i - 1,'count'])
-            right.append(tmp.loc[i + 1,'count'])
-            mid.append(tmp.loc[i,'count'])
-            D = dt.datetime.strptime(tmp.loc[i,'create_date'],'%Y-%m-%d') + dt.timedelta(hours = int(tmp.loc[i,'create_hour']))
-            time.append(D)
-
-    feature = []
-    Y = []
-    for i in range(len(time)):
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather(time[i] + dt.timedelta(hours=-1),1),  mid[i]])])
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather(time[i] + dt.timedelta(hours=+1),1),  mid[i]])])
-        Y.append(left[i])
-        Y.append(right[i])
-    return (feature,Y)
-
-def OutlierForTest(*x):
-    start = x[0]
-    end = x[1]
-    feature = []
-    m = trainset[(trainset['start_geo_id'] == start) & (trainset['end_geo_id'] == end) & (trainset['create_date'] == x[2]) & (trainset['create_hour'] == 21)].shape[0]
-    if(x[3] == 20):
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), -1,  getWeather('2017-08-02 20:00',1),  m])])
-    else:
-        feature.append([e for e in flatten([getPOI(start), getPOI(end), +1,  getWeather('2017-08-02 22:00',1),  m])])
-    return feature
-
-def OutlierSet():
-    def aplyForTrain(pool,params):
-        return pool.apply_async(OutlierForTraining,params,callback=log_result)
-    def aplyForTest(pool,params):
-        if params[2] == '2017-08-02' and (params[3] == 20 or params[3] == 22):
-            return pool.apply_async(OutlierForTest,params,callback = log_result)
-        else:
-            return None
-    X,Y = GenTrainingSet('Outlier',aplyForTrain)
-    X = [X[i][j] for i in range(len(X)) for j in range(len(X[i]))]
-    Y = [y for y in flatten(Y)]
-    TX = GenTestSet('Outlier',aplyForTest)
-    return X,Y,TX
-
+            return -1
+    return ids[id]
 
 #[ poi of start, poi of end, weather of next 2 hour, weekday, hour ]
 #| [count]
@@ -218,29 +63,48 @@ def OutlierSet():
 # 不再生成验证集，用7月份训练，8月份测试
 def GetEveryPairData(df):
     try:
-        return pickle.load(open('EveryPair.pkl','rb'))
+        D = pickle.load(open('EveryPair.pkl','rb'))
     except FileNotFoundError:
-        pass
-    D = {}
-    X = []
-    g = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
-    mat = g.values
-    i=0
-    while i < len(mat):
-        s,t = mat[i,0],mat[i,1]
-        if i%10000==0:
-            print('%s gen %d neighboors\n'%(dt.datetime.now(),i))
-        tmp = np.zeros(40*24)
-        j=i
-        while j<len(mat) and mat[j,0]==s and mat[j,1]==t:
-            tmp[ (dt.datetime.strptime( mat[j,2] ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + mat[j,3] ] = mat[j,-1]
-            j = j + 1
-        tmp[0:24] = tmp[24:48]  #6.30 <- 7.1
-        tmp[-24:] = tmp[-48:-24]# 8.8 <- 8.7
-        D[s+t] = tmp
-        i=j
-    pickle.dump(D,open('EveryPair.pkl','wb'))
-    return D
+        D = {}
+        X = []
+        g = df.groupby(['start_geo_id','end_geo_id','create_date','create_hour']).size().reset_index(name='count')
+        mat = g.values
+        i=0
+        while i < len(mat):
+            s,t = mat[i,0],mat[i,1]
+            if i%10000==0:
+                print('%s gen %d neighboors\n'%(dt.datetime.now(),i))
+            tmp = np.zeros(40*24)
+            j=i
+            while j<len(mat) and mat[j,0]==s and mat[j,1]==t:
+                tmp[ (dt.datetime.strptime( mat[j,2] ,'%Y-%m-%d' )-dt.datetime(2017,6,30)).days * 24 + mat[j,3] ] = mat[j,-1]
+                j = j + 1
+            tmp[0:24] = tmp[24:48]  #6.30 <- 7.1
+            tmp[-24:] = tmp[-48:-24]# 8.8 <- 8.7
+            D[s+t] = tmp
+            i=j
+        pickle.dump(D,open('EveryPair.pkl','wb'))
+    try:
+        dist = pickle.load(open('Distance.pkl','rb'))['dist']
+    except FileNotFoundError:
+        g = df.groupby(['start_geo_id','end_geo_id'])['estimate_distance'].mean().reset_index(name='meanDist')
+        dist = np.empty((len(g),len(g)))
+        dist.fill( np.inf )
+        mat = g.values
+        for i in range(len(mat)):
+            s,t = hash(mat[i,0]),hash(mat[i,1])
+            if i%10000==0:
+                print('%s gen %d distance\n'%(dt.datetime.now(),i))
+            dist[s,t] = dist[t,s] = mat[i,2]
+
+        print('Running Floyd...\n')
+        for k in range(len(g)):
+            for i in range(len(g)):
+                for j in range(len(g)):
+                    if dist[i,k]+dist[k,j]<dist[i,j]:
+                        dist[i,j] = dist[i,k]+dist[k,j]
+        pickle.dump({'dist':dist},open('Distance.pkl','wb'))
+    return D, dist
 
 def GetEstimate(ep,start,end,date,hour,rng = 2):
     key = start+end
@@ -273,12 +137,13 @@ def GenENSet(df,ep):
         estimate.append(GetEstimate(ep,mat[i,0],mat[i,1],mat[i,2],mat[i,3]))
     return pd.DataFrame(np.array(estimate),columns = ['estimate','hisMean','weekMean','-1','1'])
 
-def GenBasicSet(df):
+def GenBasicSet(df,dist):
     #基本特征
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.isoweekday())
     df['week'] = df['weekday'].map(lambda x: x//7+1)
     df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
+    df['dist'] = df[['start_geo_id','end_geo_id']].apply(lambda x: dist[x[0],x[1]] if hash(x[0])>0 and hash(x[1])>0 else np.inf)
     poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
     poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
     wthr = np.array(df['datetime'].apply(getWeather))
@@ -301,7 +166,7 @@ def GenBasicSet(df):
                                    ],data = np.array(X))
     return Tset
 
-def GenSSData(df,filename,ep,forTrain = True):
+def GenSSData(df,filename,ep,dist,forTrain = True):
     try:
         return pd.read_csv(filename+'.csv')
     except FileNotFoundError:
@@ -338,7 +203,7 @@ def GenSSData(df,filename,ep,forTrain = True):
     else:
         df = df.drop(['test_id'],axis = 1)
     ENset = GenENSet(df,ep)
-    Tset = GenBasicSet(df)
+    Tset = GenBasicSet(df,dist)
     if forTrain:
         Tset = pd.concat([ df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, ENset, df['count'] ],axis = 1)
     else:
@@ -347,8 +212,8 @@ def GenSSData(df,filename,ep,forTrain = True):
     return Tset
 
 def SSSet():
-    ep = GetEveryPairData(trainset)
-    Train = GenSSData(trainset,'SSTrain',ep,True)
-    Test = GenSSData(testset,'SSTest',ep,False)
+    ep, dist = GetEveryPairData(trainset)
+    Train = GenSSData(trainset,'SSTrain',ep,dist,True)
+    Test = GenSSData(testset,'SSTest',ep,dist,False)
     return Train,Test
 
