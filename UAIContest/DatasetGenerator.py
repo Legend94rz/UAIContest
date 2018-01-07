@@ -84,11 +84,15 @@ def GetEveryPairData(df):
             D[s+t] = tmp
             i=j
         pickle.dump(D,open('EveryPair.pkl','wb'))
+    global ids
     try:
-        dist = pickle.load(open('Distance.pkl','rb'))['dist']
+        f = pickle.load(open('Distance.pkl','rb'))
+        ids = f['ids']
+        dist = f['dist']
     except FileNotFoundError:
         g = df.groupby(['start_geo_id','end_geo_id'])['estimate_distance'].mean().reset_index(name='meanDist')
-        dist = np.empty((len(g),len(g)))
+        L = len( pd.concat( [df['start_geo_id'],df['end_geo_id']], axis=0).unique() )
+        dist = np.empty((L+1,L+1))
         dist.fill( np.inf )
         mat = g.values
         for i in range(len(mat)):
@@ -97,13 +101,15 @@ def GetEveryPairData(df):
                 print('%s gen %d distance\n'%(dt.datetime.now(),i))
             dist[s,t] = dist[t,s] = mat[i,2]
 
-        print('Running Floyd...\n')
-        for k in range(len(g)):
-            for i in range(len(g)):
-                for j in range(len(g)):
+        print('Running Floyd. total %d...\n'%L)
+        for k in range(L):
+            if k%100==0:
+                print('%s floyd %d \n'%(dt.datetime.now(),k))
+            for i in range(L):
+                for j in range(L):
                     if dist[i,k]+dist[k,j]<dist[i,j]:
                         dist[i,j] = dist[i,k]+dist[k,j]
-        pickle.dump({'dist':dist},open('Distance.pkl','wb'))
+        pickle.dump({'dist':dist,'ids':ids},open('Distance.pkl','wb'))
     return D, dist
 
 def GetEstimate(ep,start,end,date,hour,rng = 2):
@@ -139,15 +145,15 @@ def GenENSet(df,ep):
 
 def GenBasicSet(df,dist):
     #基本特征
+    df['dist'] = df[['start_geo_id','end_geo_id']].apply(lambda x: dist[hash(x[0],True),hash(x[1],True)] if hash(x[0],True)>0 and hash(x[1],True)>0 else np.inf , axis = 1)
     df['datetime'] = pd.to_datetime(df['create_date'] + ' ' + df['create_hour'].astype('str') + ':00')
     df['weekday'] = df['datetime'].map(lambda x: x.isoweekday())
     df['week'] = df['weekday'].map(lambda x: x//7+1)
     df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
-    df['dist'] = df[['start_geo_id','end_geo_id']].apply(lambda x: dist[x[0],x[1]] if hash(x[0])>0 and hash(x[1])>0 else np.inf)
     poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
     poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
     wthr = np.array(df['datetime'].apply(getWeather))
-    dayAndHur = np.array(df[['weekday','day','week','create_hour']])
+    others = np.array(df[['weekday','day','week','create_hour','dist']])
     X=[]
     for i in range(len(df)):
         if i % 10000 == 0:
@@ -156,13 +162,13 @@ def GenBasicSet(df,dist):
         t.extend(poiOfStart[i])
         t.extend(poiOfEnd[i])
         t.extend(wthr[i])
-        t.extend(dayAndHur[i])
+        t.extend(others[i])
         X.append(t)
     Tset = pd.DataFrame(columns = ['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel',\
                                    'toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel',\
                                    'MyCode0','feels_like0','wind_scale0','humidity0','MyCode1','feels_like1','wind_scale1','humidity1',\
                                    'MyCode2','feels_like2','wind_scale2','humidity2','MyCode3','feels_like3','wind_scale3','humidity3',\
-                                   'week','weekday','day','hour'\
+                                   'weekday','day','week','hour','dist'\
                                    ],data = np.array(X))
     return Tset
 
@@ -202,8 +208,8 @@ def GenSSData(df,filename,ep,dist,forTrain = True):
         #now df is : start, end, date, hour, count
     else:
         df = df.drop(['test_id'],axis = 1)
-    ENset = GenENSet(df,ep)
     Tset = GenBasicSet(df,dist)
+    ENset = GenENSet(df,ep)
     if forTrain:
         Tset = pd.concat([ df[['start_geo_id','end_geo_id','create_date','create_hour']], Tset, ENset, df['count'] ],axis = 1)
     else:

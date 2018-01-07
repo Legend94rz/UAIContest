@@ -61,9 +61,9 @@ guidata(hObject, handles);
 % UIWAIT makes UI wait for user response (see UIRESUME)
 % uiwait(handles.figure1);
 global w
-global xgb
+global r
 load('matlab.mat','w');
-load('matlab.mat','xgb');
+load('matlab.mat','r');
 
 % --- Outputs from this function are returned to the command line.
 function varargout = UI_OutputFcn(hObject, eventdata, handles) 
@@ -103,9 +103,9 @@ objS1 = hObject;
 function calc()
 	global objS1
     global w
-    global xgb
+    global r
 	s =  [get(objS1,'Value')];
-    a =  round(s(1)*xgb+(1-s(1))*w);
+    a =  ceil(s(1)*r+(1-s(1))*w);
     histogram(a,'BinWidth',1);
     fprintf('thres: %f, mean: %f\n',s(1),mean(a));
 	

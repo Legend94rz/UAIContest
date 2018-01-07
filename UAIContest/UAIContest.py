@@ -11,12 +11,10 @@ from mlxtend.regressor  import StackingCVRegressor, StackingRegressor
 from multiprocessing.pool import Pool
 from multiprocessing import cpu_count
 import matplotlib.pyplot as plt
+import pickle
 
-Finished = 0
-def log_result(res):
-    global Finished
-    Finished = Finished+1
-    print('%s Finished %d'%(dt.datetime.now(),Finished))
+def saveModel(filename,m):
+    pickle.dump({'model':m},open(filename+'.pkl','wb'))
 
 def saveResult(filename, yp):
     result = pd.DataFrame()
@@ -26,40 +24,27 @@ def saveResult(filename, yp):
 
 def GenResult(X,TX):
     #X = X.groupby('count').apply(stratifiedSampling)
+   # X = X[X['day']<=31]
+    X = X.replace(np.inf,0)
+    TX = TX.replace(np.inf,0)
     X['spoi'] = X[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     X['tpoi'] = X[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
     TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
     TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
 
-    featName = ['spoi','tpoi','feels_like0','wind_scale0','humidity0',
-                 'estimate','hisMean','weekMean',\
-                 'weekday','day','hour','-1','1']
-    X['residual'] = X['count'] - X['estimate']
-    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2)
+    featName = ['spoi','tpoi','dist','feels_like0','humidity0','humidity1',\
+                 'hisMean','weekMean',\
+                 'weekday','day','hour']
+    X['residual'] = X['count'] - X['1']
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 100,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
     #m = XGBRegressor(n_estimators = 300, n_jobs = 3, max_depth = 10, learning_rate = 0.1)
     m.fit(X[featName],X['residual'])
-    GBRresult = m.predict(TX[featName]) + TX['estimate']
-    #w = pd.read_csv('w.csv')['count']
-    #result = np.ceil(GBRresult.values * 0.6 + w.values * 0.4)
-    saveResult('GBR_nomerge',GBRresult.values)
-    #plot_importance(m)
-    #plt.show()
-    '''
-    #use 7.18 to predict 8.2
-    featName = ['spoi', 'tpoi', 'estimate','hisMean','hour','-1','1']
-    x718 = X[(X['create_date'] == '2017-07-18')]
-    tx82 = TX[(TX['create_date'] == '2017-08-02')]
-    m2 = GradientBoostingRegressor(loss = 'lad',n_estimators = 100,max_depth=50,learning_rate =0.1,verbose = 2)
-    m2.fit(x718[featName],x718['residual'])
-    R82 = m2.predict(tx82[featName])+tx82['estimate']
-    result[TX['create_date']=='2017-08-02'] =  result[TX['create_date']=='2017-08-02']*0.5 + R82*0.5
-    saveResult('GBR',result)
-
-    p = pd.DataFrame()
-    p['r82']=R82
-    p.to_csv('r82.csv')
-    '''
+    saveModel('gbr',m)
+    modelResult = m.predict(TX[featName]) + TX['1']
+    saveResult('GBR_useNxthur_nomerge_256_100',modelResult.values)
+    print(np.mean( modelResult.values ))
+    #plot_importance(m);plt.show();
 
 def stratifiedSampling(group):
     if group.name==1:
