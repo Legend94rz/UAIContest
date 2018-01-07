@@ -4,7 +4,7 @@ import datetime as dt
 import numpy as np
 from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-from ILearner import ILearner,Xgb
+from ILearner import ILearner,Xgb, Voting
 from xgboost import XGBRegressor, plot_importance, plot_tree
 from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
 from mlxtend.regressor  import StackingCVRegressor, StackingRegressor
@@ -80,6 +80,7 @@ def stratifiedSampling(group):
 '''
 
 if __name__ == "__main__":
-    Train,Test = SSSet()
-    GenResult(Train,Test)
-
+    #Train,Test = SSSet()
+    #GenResult(Train,Test)
+    v = Voting([])
+    saveResult('voting', v.vote())

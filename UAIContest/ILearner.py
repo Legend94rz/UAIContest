@@ -5,6 +5,7 @@ from sklearn.svm import SVR
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.model_selection import KFold
+import pandas as pd
 
 class ILearner(object):
     @staticmethod
@@ -58,3 +59,21 @@ class Stacking(ILearner):
     def predict(self,X):
         return self.metaModel.predict(X)
 
+
+class Voting(object):
+    def __init__(self,files):
+        self.l = []
+        for file in files:
+            self.l.append = pd.read_csv(file)['count'].rename(file)
+        self.l = pd.concat(self.l,axis = 1)
+
+    def vote(self):
+        mat = self.l.values
+        result = []
+        for i in range(len(mat)):
+            t = mat[i,:]
+            if 0 in t:
+                result.append(0)
+            else:
+                result.apend(t.mean())
+        return np.array(result)
