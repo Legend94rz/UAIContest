@@ -64,7 +64,9 @@ class Voting(object):
     def __init__(self,files):
         self.l = []
         for file in files:
-            self.l.append = pd.read_csv(file)['count'].rename(file)
+            t = pd.read_csv(file)['count']
+            t = t.rename(file)
+            self.l.append(t)
         self.l = pd.concat(self.l,axis = 1)
 
     def vote(self):
@@ -75,5 +77,5 @@ class Voting(object):
             if 0 in t:
                 result.append(0)
             else:
-                result.apend(t.mean())
+                result.append(t.mean())
         return np.array(result)

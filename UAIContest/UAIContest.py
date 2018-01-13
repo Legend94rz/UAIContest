@@ -36,15 +36,14 @@ def GenResult(X,TX):
     featName = ['spoi','tpoi','dist','feels_like0','humidity0','humidity1',\
                  'hisMean','weekMean',\
                  'weekday','day','hour']
-    X['residual'] = X['count'] - X['1']
-    m = GradientBoostingRegressor(loss='lad',n_estimators = 100,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
-    #m = XGBRegressor(n_estimators = 300, n_jobs = 3, max_depth = 10, learning_rate = 0.1)
+    X['residual'] = X['count'] - X['estimate']
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
     m.fit(X[featName],X['residual'])
-    saveModel('gbr',m)
-    modelResult = m.predict(TX[featName]) + TX['1']
-    saveResult('GBR_useNxthur_nomerge_256_100',modelResult.values)
+    FileName = 'gbr_100est_300dep_256min_useEstimate_nomerge'
+    saveModel(FileName,m)
+    modelResult = m.predict(TX[featName]) + TX['estimate']
+    saveResult(FileName,modelResult.values)
     print(np.mean( modelResult.values ))
-    #plot_importance(m);plt.show();
 
 def stratifiedSampling(group):
     if group.name==1:
@@ -80,7 +79,14 @@ def stratifiedSampling(group):
 '''
 
 if __name__ == "__main__":
-    #Train,Test = SSSet()
-    #GenResult(Train,Test)
-    v = Voting([])
-    saveResult('voting', v.vote())
+    Train,Test,Final = SSSet()
+    GenResult(Train,Final)
+
+    #v = Voting(['GBR_useNxthur_nomerge_256_100.csv',
+    #            'GBR_usePrehour_nomerge_256.csv',
+    #            'GBR_useHisMean_nomerge_256.csv',
+    #            'GBR_useEstimate_nomerge_256.csv',
+    #            'GBR_useEstimate_nomerge_256_300.csv'])
+    #result = v.vote()
+    #print(result.mean())
+    #saveResult('voting', result)

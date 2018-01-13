@@ -8,6 +8,8 @@ import numpy as np
 julyset = pd.read_csv('.\\Data\\train_July.csv')
 augset = pd.read_csv('.\\Data\\train_Aug.csv')
 testset = pd.read_csv('.\\Data\\test_id_Aug_agg_public5k.csv')
+finalset = pd.read_csv('.\\Data\\test_id_Aug_agg_private5k.csv')
+
 poi = pd.read_csv('.\\Data\\poi.csv',encoding = 'ansi', header=None, names = list(range(21)))
 weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
@@ -221,5 +223,6 @@ def SSSet():
     ep, dist = GetEveryPairData(trainset)
     Train = GenSSData(trainset,'SSTrain',ep,dist,True)
     Test = GenSSData(testset,'SSTest',ep,dist,False)
-    return Train,Test
+    FinalTest = GenSSData(finalset,'SSFinal',ep,dist,False)
+    return Train,Test,FinalTest
 
