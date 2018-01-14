@@ -21,12 +21,17 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="compare_results.py" />
     <Compile Include="DatasetGenerator.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="data_provider.py" />
+    <Compile Include="ensemble.py" />
+    <Compile Include="global_rgr.py" />
     <Compile Include="ILearner.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="July_Aug_mean.py" />
     <Compile Include="residual.py" />
     <Compile Include="UAIContest.py" />
   </ItemGroup>
