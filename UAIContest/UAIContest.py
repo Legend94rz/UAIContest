@@ -37,9 +37,9 @@ def GenResult(X,TX):
                  'hisMean','weekMean',\
                  'weekday','day','hour']
     X['residual'] = X['count'] - X['estimate']
-    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 400,max_depth = 350, learning_rate = 0.1, verbose = 2, min_samples_leaf = 128, min_samples_split = 128)
     m.fit(X[featName],X['residual'])
-    FileName = 'gbr_100est_300dep_256min_useEstimate_nomerge'
+    FileName = 'gbr_400est_350dep_256min_useEst_nomerge'
     saveModel(FileName,m)
     modelResult = m.predict(TX[featName]) + TX['estimate']
     saveResult(FileName,modelResult.values)

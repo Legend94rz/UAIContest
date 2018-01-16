@@ -278,7 +278,7 @@ def gbr_train(train_X, train_Y, model_path=""):
 		# max_depth=400, learning_rate=0.1,
 		# 	min_samples_leaf=100, min_samples_split=100, random_state=1024)
 		clf.fit(train_X, train_Y)
-		saved_path = "models/gbr.pkl"
+		saved_path = "gbr.pkl"
 		with open(saved_path, 'wb') as fid:
 			pickle.dump(clf, fid)
 	else:

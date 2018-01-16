@@ -15,7 +15,7 @@ weather = pd.read_csv('.\\Data\\weather.csv',encoding = 'gb2312')
 
 weather['date'] = weather['date'].map(lambda x:dt.datetime.strptime(x,'%Y/%m/%d %H:%M'))
 weather['MyCode'] = weather['text'].map({'晴':8,'多云':7,'阴':6,'阵雨':5,'雷阵雨':4,'小雨':3,'中雨':2,'大雨':1})
-weather = weather.fillna(0)
+#weather = weather.fillna(0)
 
 trainset = pd.concat([julyset, augset])
 
@@ -26,25 +26,25 @@ def getPOI(id):
         result = poiCatch[id]
     else:
         try:
-            result = list(poi[poi[0] == id][[2,4,6,8,10,12,14,16,18,20]].values[0])
+            result = poi[poi[0] == id][[2,4,6,8,10,12,14,16,18,20]].values[0]
         except (IndexError,KeyError):
-            result = [0 for i in range(10)]
+            result = np.zeros((1,10))
         poiCatch[id] = result
     return result
 
 # 4 element
 weatherCatch = {}
 def getWeather(time, howManyHalfHour=4):
-    result = []
+    result = np.array([])
     for j in range(howManyHalfHour):
         if time in weatherCatch:
             result.extend(weatherCatch[time])
         else:
             tmp = weather[(weather['date'] == time)][['MyCode','feels_like','wind_scale','humidity']]
-            t = [0 for i in range(4)]
+            t = np.zeros((1,4))
             if tmp.shape[0] > 0:
-                t = list(tmp.iloc[0])
-            result.extend(t)
+                t = tmp.iloc[0]
+            result = np.vstack((result,t))
             weatherCatch[time] = t
         time = time + dt.timedelta(minutes = 30)
     return result
@@ -152,10 +152,10 @@ def GenBasicSet(df,dist):
     df['weekday'] = df['datetime'].map(lambda x: x.isoweekday())
     df['week'] = df['weekday'].map(lambda x: x//7+1)
     df['day'] = df['datetime'].map(lambda x: (x-dt.datetime(2017,6,30)).days)
-    poiOfStart = np.array(df['start_geo_id'].apply(getPOI))
-    poiOfEnd = np.array(df['end_geo_id'].apply(getPOI))
-    wthr = np.array(df['datetime'].apply(getWeather))
-    others = np.array(df[['weekday','day','week','create_hour','dist']])
+    poiOfStart = df['start_geo_id'].apply(getPOI)
+    poiOfEnd = df['end_geo_id'].apply(getPOI)
+    wthr = df['datetime'].apply(getWeather)
+    others = df[['weekday','day','week','create_hour','dist']]
     X=[]
     for i in range(len(df)):
         if i % 10000 == 0:
