@@ -5,7 +5,7 @@ import csv
 
 def read_csv(csv_name):
 	res = []
-	with open(csv_name, 'r') as csvfile:
+	with open(csv_name, 'rb') as csvfile:
 		csv_reader = csv.reader(csvfile)
 		cc = 0
 		for row in csv_reader:
@@ -16,7 +16,7 @@ def read_csv(csv_name):
 	return res
 
 def write_csv(res, csv_name):
-	with open(csv_name, 'w') as csvfile:
+	with open(csv_name, 'wb') as csvfile:
 		csv_writer = csv.writer(csvfile)
 		csv_writer.writerow(['test_id', 'count'])
 		for i, row in enumerate(res):
@@ -24,14 +24,14 @@ def write_csv(res, csv_name):
 
 def read_poi_csv(csv_name):
 	res = []
-	with open(csv_name, 'r') as csvfile:
+	with open(csv_name, 'rb') as csvfile:
 		csv_reader = csv.reader(csvfile)
 		for row in csv_reader:
 			res.append(row)
 	return res
 
 def write_list2csv(res, csv_name):
-	with open(csv_name, 'w') as csvfile:
+	with open(csv_name, 'wb') as csvfile:
 		csv_writer = csv.writer(csvfile)
 		csv_writer.writerow(['start_geo_id', 'end_geo_id', 'train_data_count', 'val_data_count'])
 		for item in res:

@@ -5,9 +5,10 @@ import data_provider
 import numpy as np
 import math
 
-model_result_csv_name = 'Results/global_result_01_13_private5k.csv'
-July_Aug_mean_csv_name = 'Results/Aug_mean_private5k.csv'
-result_csv_name = 'Results/result_01_13_private5k.csv'
+model_result_csv_name = 'global_result_01_15_private5k.csv'
+July_Aug_mean_csv_name = 'Aug_mean_private5k.csv'
+# July_Aug_mean_csv_name = 'archives/w.csv'
+result_csv_name = 'result_01_15_private5k.csv'
 
 def main():
 	model_result = data_provider.read_csv(model_result_csv_name)

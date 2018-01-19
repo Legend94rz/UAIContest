@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 try:
-	import pickle as pickle
+	import cPickle as pickle
 except:
 	import pickle
 import datetime
@@ -16,12 +16,13 @@ poi_csv_name = 'data/poi.csv'
 weather_csv_name = 'data/weather1.csv'
 July_csv_name = 'data/train_July.csv'
 Aug_csv_name = 'data/train_Aug.csv'
-test_csv_name = 'data/test_id_Aug_agg_public5k.csv'
-result_csv_name = 'global_result_01_14_public5k.csv'
+test_csv_name = 'data/test_id_Aug_agg_private5k.csv'
+result_csv_name = 'global_result_01_15_private5k_count_delta_prev.csv'
 
 poi_avg = []
 d0 = datetime.datetime(2017, 7, 1)
 n_clusters = 6
+hour_delta = -1
 
 '''
 0,1:晴, 4:多云, 9:阴,
@@ -123,11 +124,12 @@ def count_poi_data(data):
 	cc = 0
 	for each_data in data:
 		geo_id = each_data[0]
-		nums = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (each_data[2], each_data[4], each_data[6], each_data[8], each_data[10], 
+		nums = '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s' % (
+			each_data[2], each_data[4], each_data[6], each_data[8], each_data[10], 
 			each_data[12], each_data[14], each_data[16], each_data[18], each_data[20])
 		poi_dict_data[geo_id] = nums
 		_nums = nums.split(',')
-		poi_avg = [poi_avg[i] + int(_nums[i]) for i in range(10)]
+		poi_avg = [poi_avg[i]+int(_nums[i]) for i in range(10)]
 		cc += 1
 	poi_avg = [n * 1.0 / cc for n in poi_avg]
 	# print(poi_avg)
@@ -198,7 +200,7 @@ def query_weather(weather_dict_data, weather_key):
 			prev_weather = prev_weather.split(',')
 			next_weather = next_weather.split(',')
 			assert len(prev_weather) == len(next_weather)
-			weather = [str((float(prev_weather[i]) + float(next_weather[i])) / 2.0) for i in range(len(prev_weather))]
+			weather = [str((float(prev_weather[i])+float(next_weather[i]))/2.0) for i in range(len(prev_weather))]
 			if int(prev_weather[0]) != int(next_weather[0]):
 				weather[0] = next_weather[0]
 			weather = ','.join(weather)
@@ -208,7 +210,7 @@ def query_weather(weather_dict_data, weather_key):
 			weather = next_weather
 	return weather
 
-def create_fea(create_date, create_hour, weather_dict_data, key1=None, train_avgs=None, weighted_train_avgs=None):
+def create_fea(create_date, create_hour, weather_dict_data, key1=None, count_dict_data=None):
 	# 2017-08-03 06
 	rain_code = [10, 11, 13, 14, 15]
 	hour = int(create_hour)
@@ -223,40 +225,27 @@ def create_fea(create_date, create_hour, weather_dict_data, key1=None, train_avg
 			else: rains.append('0')
 		else:
 			rains.append('0')
-		# if weather_key in weather_dict_data:
-		# 	weather = weather_dict_data[weather_key]
-		# 	code = int(weather.split(',')[0])
-		# 	if code in rain_code: rains.append('1')
-		# 	else: rains.append('0')
-		# else:
-		# 	rains.append('0')
 	rains_fea = ','.join(rains)
 	date_id = cal_date_id(create_date)
 	weekday = calWeekday(create_date)
 	week_fea = str(weekday)
 	hour_fea = str(hour)
-	if train_avgs != None and weighted_train_avgs != None:
-		_weighted_avg_fea = '0'
-		if key1 in weighted_train_avgs:
-			if create_hour in weighted_train_avgs[key1]:
-				_weighted_avg_fea = str(weighted_train_avgs[key1][create_hour])
-		_avg_fea = []
-		# create_hours = createHours(create_date, create_hour, [0, 1, -1])
-		create_hours = createHours(create_date, create_hour, [-3, -2, -1, 0, 1, 2, 3]) # no..
+	if count_dict_data != None:
+		delta_hour_counts = []
+		create_hours = createHours(create_date, create_hour, [hour_delta])
 		for c_hour in create_hours:
 			_date, _hour = c_hour.split(',')
 			_hour = _hour.split(':')[0]
-			if key1 in train_avgs:
-				if _hour in train_avgs[key1]:
-					_avg_fea.append(str(train_avgs[key1][_hour]))
+			delta_hour_key = '%s,%s' % (_date, _hour)
+			if key1 in count_dict_data:
+				if delta_hour_key in count_dict_data[key1]:
+					delta_hour_counts.append(str(count_dict_data[key1][delta_hour_key]))
 				else:
-					_avg_fea.append('0')
+					delta_hour_counts.append('0')
 			else:
-				_avg_fea.append('0')
-		_avg_fea = ','.join(_avg_fea)
-		# fea = '%s,%s,%s,%s,%s' % (date_id, week_fea, hour_fea, _weighted_avg_fea,
-		# _avg_fea)
-		fea = '%s,%s,%s,%s,%s' % (date_id, week_fea, hour_fea, _avg_fea, rains_fea)
+				delta_hour_counts.append('0')
+		delta_hour_counts_fea = ','.join(delta_hour_counts)
+		fea = '%s,%s,%s,%s,%s' % (date_id, week_fea, hour_fea, delta_hour_counts_fea, rains_fea)
 	else:
 		fea = '%s,%s,%s' % (hour_fea, week_fea, rains_fea)
 	return fea
@@ -270,71 +259,32 @@ def gbr_train(train_X, train_Y, model_path=""):
 	if model_path == "":
 		print('training gbr model.')
 		# 1.7188
-		# clf = GradientBoostingRegressor(loss='lad', n_estimators=400,
-		# max_depth=300, learning_rate=0.1,
+		# clf = GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=300, learning_rate=0.1,
 		# 	min_samples_leaf=256, min_samples_split=256, random_state=1024)
 		# 1.7114
-		clf = GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1,
-			min_samples_leaf=128, min_samples_split=128, random_state=1024)
+		# clf = GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1,
+		# 	min_samples_leaf=128, min_samples_split=128, random_state=1024)
 		# 1.7136
-		# clf = GradientBoostingRegressor(loss='lad', n_estimators=400,
-		# max_depth=400, learning_rate=0.1,
+		# clf = GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=400, learning_rate=0.1,
 		# 	min_samples_leaf=100, min_samples_split=100, random_state=1024)
 		# 1.7184 on DELL PC
-		# clf = GradientBoostingRegressor(loss='lad', n_estimators=500,
-		# max_depth=350, learning_rate=0.05,
+		# clf = GradientBoostingRegressor(loss='lad', n_estimators=500, max_depth=350, learning_rate=0.05,
 		# 	min_samples_leaf=128, min_samples_split=128, random_state=1024)
+		clf = GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1,
+			min_samples_leaf=160, min_samples_split=160, random_state=1024)
 		clf.fit(train_X, train_Y)
-		saved_path = "gbr.pkl"
+		saved_path = "delta_hour_gbr.pkl"
 		with open(saved_path, 'wb') as fid:
 			pickle.dump(clf, fid)
 	else:
 		print('reading gbr model.')
 		with open(model_path, 'rb') as fid:
 			clf = pickle.load(fid)
+		print('feature importances: ', clf.feature_importances_)
 	return clf
 
-def val_predict(val_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, train_model, train_scaler=None, 
-	train_avgs=None, weighted_train_avgs=None):
-	global_pred_Ys = []
-	gt_Ys = []
-	print('predicting val data.')
-	for key1 in val_count_dict_data:
-		A_geo_id, B_geo_id = key1.split(',')
-		for key2 in val_count_dict_data[key1]:
-			gt_Ys.append(val_count_dict_data[key1][key2] * 1.0)
-			create_date, create_hour = key2.split(',')
-			create_hours = createHours(create_date, create_hour, [0])
-			Ys = []
-			for c_hour in create_hours:
-				_date, _hour = c_hour.split(',')
-				_hour = _hour.split(':')[0]
-				fea = create_fea(_date, _hour, weather_dict_data, key1, train_avgs, weighted_train_avgs)
-				fea = convert_fea(fea)
-				poi_fea = create_poi_fea(A_geo_id, B_geo_id, poi_dict_data, poi_kmeans_labels)
-				fea = fea + poi_fea
-				if train_scaler != None:
-					_x = train_scaler.transform([fea])
-				else:
-					_x = np.array([fea], dtype=np.float64)
-				_y = train_model.predict(_x)
-				if train_avgs != None:
-					_avg = 0.0
-					if key1 in train_avgs:
-						if _hour in train_avgs[key1]:
-							_avg = train_avgs[key1][_hour]
-					_y = (_y[0] + _avg) if (_y[0] + _avg) >= 0.0 else 0.0
-				else:
-					_y = _y[0] if _y[0] >= 0.0 else 0.0
-				Ys.append(_y)
-			global_pred_Ys.append(Ys[0])
-			# global_pred_Ys.append(0.05*Ys[0] + 0.1*Ys[1] + 0.15*Ys[2] + 0.4*Ys[3] +
-			# 0.15*Ys[4] + 0.1*Ys[5] + 0.05*Ys[6])
-	return global_pred_Ys, gt_Ys
-
-def test_predict(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, train_model, train_scaler=None, 
-	train_avgs=None, weighted_train_avgs=None):
-	#test_id,start_geo_id,end_geo_id,create_date,create_hour
+def test_predict(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, Aug_count_dict_data, train_model):
+	# test_id,start_geo_id,end_geo_id,create_date,create_hour
 	global_pred_Ys = []
 	print('predciting test data.')
 	for each_data in test_data:
@@ -343,35 +293,34 @@ def test_predict(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels,
 		key1 = '%s,%s' % (start_geo_id, end_geo_id)
 		create_date, create_hour = each_data[3], each_data[4]
 		create_hours = createHours(create_date, create_hour, [0])
-		# create_hours = createHours(create_date, create_hour, [-3, -2, -1, 0, 1, 2,
-		# 3])
 		Ys = []
 		for c_hour in create_hours:
 			_date, _hour = c_hour.split(',')
 			_hour = _hour.split(':')[0]
-			fea = create_fea(_date, _hour, weather_dict_data, key1, train_avgs, weighted_train_avgs)
+			fea = create_fea(_date, _hour, weather_dict_data, key1, Aug_count_dict_data)
 			fea = convert_fea(fea)
 			poi_fea = create_poi_fea(start_geo_id, end_geo_id, poi_dict_data, poi_kmeans_labels)
 			fea = fea + poi_fea
-			if train_scaler != None:
-				_x = train_scaler.transform([fea])
-			else:
-				_x = np.array([fea], dtype=np.float64)
+			_x = np.array([fea], dtype=np.float64)
 			_y = train_model.predict(_x)
-			if train_avgs != None:
-				_avg = 0.0
-				if key1 in train_avgs:
-					if _hour in train_avgs[key1]:
-						_avg = train_avgs[key1][_hour]
-				_y = (_y[0] + _avg) if (_y[0] + _avg) >= 0.0 else 0.0
+			if Aug_count_dict_data != None:
+				delta_hour_count = 0.0
+				delta_hour = createHours(create_date, create_hour, [hour_delta])[0]
+				_date, _hour = delta_hour.split(',')
+				_hour = _hour.split(':')[0]
+				delta_hour_key = '%s,%s' % (_date, _hour)
+				if key1 in Aug_count_dict_data:
+					if delta_hour_key in Aug_count_dict_data[key1]:
+						delta_hour_count = Aug_count_dict_data[key1][delta_hour_key]
+				_y = (_y[0] + delta_hour_count) if (_y[0] + delta_hour_count) >= 0.0 else 0.0
 			else:
 				_y = _y[0] if _y[0] >= 0.0 else 0.0
 			Ys.append(_y)
 		global_pred_Ys.append(Ys[0])
 	return global_pred_Ys
 
-def create_test_fea(test_data, weather_dict_data, poi_dict_data, train_scaler=None, train_avgs=None, weighted_train_avgs=None):
-	#test_id,start_geo_id,end_geo_id,create_date,create_hour
+def create_test_fea(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, Aug_count_dict_data):
+	# test_id,start_geo_id,end_geo_id,create_date,create_hour
 	test_feas = []
 	print('predciting test data.')
 	for each_data in test_data:
@@ -380,26 +329,15 @@ def create_test_fea(test_data, weather_dict_data, poi_dict_data, train_scaler=No
 		key1 = '%s,%s' % (start_geo_id, end_geo_id)
 		create_date, create_hour = each_data[3], each_data[4]
 		create_hours = createHours(create_date, create_hour, [0])
-		# create_hours = createHours(create_date, create_hour, [-3, -2, -1, 0, 1, 2,
-		# 3])
 		Ys = []
 		for c_hour in create_hours:
 			_date, _hour = c_hour.split(',')
 			_hour = _hour.split(':')[0]
-			# if key1 ==
-			# 'b7bfc359c25cddc32ae6299ba22fd3d7,3cdb9ab878fa95e97bb93b2b54de88b3' and
-			# create_date == '2017-08-01' and create_hour == '9':
-			# 	import pdb
-			# 	pdb.set_trace()
-			fea = create_fea(_date, _hour, weather_dict_data, key1, train_avgs, weighted_train_avgs)
+			fea = create_fea(_date, _hour, weather_dict_data, key1, Aug_count_dict_data)
 			fea = convert_fea(fea)
-			poi_fea = create_poi_fea(start_geo_id, end_geo_id, poi_dict_data)
+			poi_fea = create_poi_fea(start_geo_id, end_geo_id, poi_dict_data, poi_kmeans_labels)
 			fea = fea + poi_fea
-			if train_scaler != None:
-				_x = train_scaler.transform([fea])
-			else:
-				_x = np.array([fea], dtype=np.float64)
-			test_feas.append(_x)
+			test_feas.append(fea)
 	import pdb
 	pdb.set_trace()
 	return test_feas
@@ -420,27 +358,26 @@ def count_data(data):
 			count_dict_data[key1][key2] = 1
 	return count_dict_data
 
-def create_data(train_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels,
-	train_avgs=None, weighted_train_avgs=None):
+def create_data(July_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels):
 	train_X = []
 	train_Y = []
-	for key1 in train_count_dict_data:
+	for key1 in July_count_dict_data:
 		A_geo_id, B_geo_id = key1.split(',')
-		for key2 in train_count_dict_data[key1]:
+		for key2 in July_count_dict_data[key1]:
 			create_date, create_hour = key2.split(',')
-			fea = create_fea(create_date, create_hour, weather_dict_data, key1, train_avgs, weighted_train_avgs)
+			fea = create_fea(create_date, create_hour, weather_dict_data, key1, July_count_dict_data)
 			fea = convert_fea(fea)
 			poi_fea = create_poi_fea(A_geo_id, B_geo_id, poi_dict_data, poi_kmeans_labels)
 			fea = fea + poi_fea
 			train_X.append(fea)
-			if train_avgs != None:
-				_avg = 0
-				if key1 in train_avgs:
-					if create_hour in train_avgs[key1]:
-						_avg = train_avgs[key1][create_hour]
-				label = train_count_dict_data[key1][key2] * 1.0 - _avg
-			else:
-				label = train_count_dict_data[key1][key2] * 1.0
+			delta_hour = createHours(create_date, create_hour, [hour_delta])[0]
+			_date, _hour = delta_hour.split(',')
+			_hour = _hour.split(':')[0]
+			delta_hour_key = '%s,%s' % (_date, _hour)
+			delta_hour_count = 0.0
+			if delta_hour_key in July_count_dict_data[key1]:
+				delta_hour_count = July_count_dict_data[key1][delta_hour_key]
+			label = July_count_dict_data[key1][key2] * 1.0 - delta_hour_count
 			train_Y.append(label)
 	return train_X, train_Y
 
@@ -454,8 +391,7 @@ def cal_avgs(train_count_dict_data, weighted=True):
 			train_avgs[key1][create_hour] += train_count_dict_data[key1][key2]
 			date_dict[create_hour].add(create_date)
 		for hour_key2 in train_avgs[key1]:
-			# train_avgs[key1][hour_key2] = train_avgs[key1][hour_key2] * 1.0 /
-			# len(date_dict[hour_key2])
+			# train_avgs[key1][hour_key2] = train_avgs[key1][hour_key2] * 1.0 / len(date_dict[hour_key2])
 			if int(hour_key2) % 2 == 0:
 				train_avgs[key1][hour_key2] = train_avgs[key1][hour_key2] * 1.0 / 35
 			else:
@@ -525,54 +461,19 @@ def main():
 	Aug_data = data_provider.read_csv(Aug_csv_name)
 	print('July data:', len(July_data))
 	print('Aug_data:', len(Aug_data))
-	July_data.extend(Aug_data)
-	train_data = July_data
-	val_data = Aug_data
-	print('train data:', len(train_data))
-	print('val_data:', len(val_data))
 	test_data = data_provider.read_csv(test_csv_name)
 	print('test data:', len(test_data))
 
-	train_count_dict_data = count_data(train_data)
-	train_avgs, weighted_train_avgs = cal_avgs(train_count_dict_data, weighted=True)
-	# key1 = 'c538ad66d710f99ad0ce951152da36a4,c538ad66d710f99ad0ce951152da36a4'
-	# for hour_key2 in train_avgs[key1]:
-	# 	print(hour_key2, train_avgs[key1][hour_key2])
-	############
-	# Debug fea
-	############
-	# train_scaler = None
-	# create_test_fea(test_data, weather_dict_data, poi_dict_data,
-	# 	train_scaler=train_scaler, train_avgs=train_avgs,
-	# 	weighted_train_avgs=weighted_train_avgs)
+	July_count_dict_data = count_data(July_data)
+	Aug_count_dict_data = count_data(Aug_data)
 	
-	train_X, train_Y = create_data(train_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels,
-		train_avgs=train_avgs, weighted_train_avgs=weighted_train_avgs)
-	# train_X, train_Y, train_scaler = preprocess_data(train_X, train_Y,
-	# return_scaler=True)
-	train_X, train_Y = preprocess_data(train_X, train_Y)
-	train_scaler = None
-	print('train_X:', train_X.shape, 'train_Y:', train_Y.shape)
-	# print train_Y[0:20]
-	# print train_Y[-20:-1]
-	val_count_dict_data = count_data(val_data)
-	# val_X, val_Y = create_data(val_count_dict_data, weather_dict_data,
-	# poi_dict_data, train_avgs=train_avgs,
-	# weighted_train_avgs=weighted_train_avgs)
-	# val_X, val_Y = preprocess_data(val_X, val_Y, do_scaler=True,
-	# _train_scaler=train_scaler)
-	# print val_Y[0:20]
-	# print val_Y[-20:-1]
+	July_X, July_Y = create_data(July_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels)
+	July_X, July_Y = preprocess_data(July_X, July_Y)
+	print('July_Y:', July_X.shape, 'July_Y:', July_Y.shape)
 
-	train_model = gbr_train(train_X, train_Y, model_path="")
-	# train_model = grid_search_gbr(train_X, train_Y)
-	
-	global_pred_Ys, gt_Ys = val_predict(val_count_dict_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, 
-		train_model=train_model, train_scaler=train_scaler, train_avgs=train_avgs, weighted_train_avgs=weighted_train_avgs)
-	e = maer(global_pred_Ys, gt_Ys)
-	print('mae:', e)
-	global_pred_Ys = test_predict(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, 
-		train_model=train_model, train_scaler=train_scaler, train_avgs=train_avgs, weighted_train_avgs=weighted_train_avgs)
+	train_model = gbr_train(July_X, July_Y, model_path="delta_hour_gbr.pkl")
+
+	global_pred_Ys = test_predict(test_data, weather_dict_data, poi_dict_data, poi_kmeans_labels, Aug_count_dict_data, train_model)
 	data_provider.write_csv(global_pred_Ys, result_csv_name)
 
 if __name__ == '__main__':

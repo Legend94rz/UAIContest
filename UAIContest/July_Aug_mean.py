@@ -6,13 +6,13 @@ from collections import defaultdict
 import data_provider
 import numpy as np
 
-poi_csv_name = 'Data/poi.csv'
-weather_csv_name = 'Data/weather.csv'
-July_csv_name = 'Data/train_July.csv'
-Aug_csv_name = 'Data/train_Aug.csv'
-test_csv_name = 'Data/test_id_Aug_agg_private5k.csv'
-result_csv_name = 'Results/Aug_mean_private5k.csv'
-# result_csv_name = 'Results/July_Aug_mean.csv'
+poi_csv_name = 'data/poi.csv'
+weather_csv_name = 'data/weather.csv'
+July_csv_name = 'data/train_July.csv'
+Aug_csv_name = 'data/train_Aug.csv'
+test_csv_name = 'data/test_id_Aug_agg_private5k.csv'
+result_csv_name = 'Aug_mean_private5k.csv'
+# result_csv_name = 'July_Aug_mean.csv'
 
 def preDate(date):
 	year, month, day = date.split('-')
