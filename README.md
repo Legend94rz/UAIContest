@@ -1,5 +1,6 @@
-# UAI数据大赛 PALM队 模型说明
-## 概述
+# UAI数据大赛 PALM队 模型及运行说明
+## 模型说明
+### 概述
 我们集成了5个模型，为方便起见，5个模型的输出放在Data文件夹中，包括：
 
 1. gbr_300est_300dep_256min_useEstimate_nomerge.csv
@@ -10,7 +11,7 @@
 
 下面分别说明。
 
-## 模型1
+### 模型1
 对应输出文件是gbr_300est_300dep_256min_useEstimate_nomerge，训练集使用7、8月份所有已知数据构建，测试集使用给定的public或private集构建。
 
 特征：
@@ -37,7 +38,7 @@ ceil(0.6\*当前时刻历史均值+0.2\*(前一小时历史均值+后一小时�
 sklearn.ensemble.GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
 ```
 
-## 模型2
+### 模型2
 对应输出文件是global_result_01_15_private5k_count_delta_prev.csv。训练集仅采用7月份数据，测试集采用public或private集构建。
 
 特征：
@@ -57,7 +58,7 @@ sklearn.ensemble.GradientBoostingRegressor(loss='lad',n_estimators = 300,max_dep
 sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1, min_samples_leaf=160, min_samples_split=160, random_state=1024)
 ```
 
-## 模型3
+### 模型3
 对应输出文件是global_result_01_14_private5k_1_664.csv。训练集采用7、8月份的全部数据。测试集采用public或private集构建。
 
 特征：
@@ -77,7 +78,7 @@ sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_dep
 sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1, min_samples_leaf=128, min_samples_split=128, random_state=1024)
 ```
 
-## 模型4
+### 模型4
 对应输出文件是global_result_01_15_private5k_count_delta_next.csv。训练集仅采用7月份数据，测试集采用public或private集构建。
 
 特征：
@@ -97,11 +98,11 @@ sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_dep
 sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_depth=350, learning_rate=0.1, min_samples_leaf=160, min_samples_split=160, random_state=1024)
 ```
 
-## 模型5
+### 模型5
 对应输出文件是Aug_mean_private5k.csv。它保存了public或private集中，每个样本对应时刻的前一小时、后一小时的平均值。
 
-## 集成方式
-单独采用模型2和模型5可得到结果为1.664左右的结果。
+### 集成方式
+首先，模型2与模型5按照0.6与0.4的权重融合可以得到1.664左右的结果。
 
 我们在1.664的结果的基础上改进。为后文叙述方便，定义变量：
 * a=mean(模型2、3、4、5输出)
@@ -119,3 +120,30 @@ sklearn.ensemble.GradientBoostingRegressor(loss='lad', n_estimators=400, max_dep
 备注：因为sklearn中聚类以及GBDT算法训练有一定的随机性，复现结果不一定会完全相同，但是基本不会差太多。
 
 谢谢
+
+## 运行说明
+
+### 开发环境及依赖
+
+Anaconda 5.0 + python 3.6
+依赖包（包括但不限于）：sklearn、pickle、pandas等
+
+### 运行
+保证Data目录中存在 train_July.csv、 train_Aug.csv、test_id_Aug_agg_public5k.csv、test_id_Aug_agg_private5k.csv、poi.csv，并且不要修改其他原有文件。
+
+在X:\UAIContest\UAIContest文件夹中，执行以下命令可得到模型1、2、4的输出
+```
+python UAIContest.py
+python global_rgr_count_delta.py
+python global_rgr.py
+```
+模型3的输出需要修改global_rgr_count_delta.py第25行，把-1改为1；以及第20行，把prev改为next，然后执行命令
+```
+python global_rgr_count_delta.py
+```
+
+最后，进入Data目录，执行
+```
+python addZeros.py
+```
+可得到private_has_zero.csv，即为1.655的最终结果。
