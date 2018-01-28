@@ -21,7 +21,6 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="addZeros.py" />
     <Compile Include="DatasetGenerator.py">
       <SubType>Code</SubType>
     </Compile>
