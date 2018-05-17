@@ -21,6 +21,14 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="DatasetGenerator.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="data_provider.py" />
+    <Compile Include="ensemble.py" />
+    <Compile Include="global_rgr.py" />
+    <Compile Include="global_rgr_count_delta.py" />
+    <Compile Include="July_Aug_mean.py" />
     <Compile Include="UAIContest.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />

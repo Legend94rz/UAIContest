@@ -1,50 +1,50 @@
 import pandas as pd
-import matplotlib.pyplot as plt
-import datetime as dt
+from DatasetGenerator import testset, trainset, SSSet
+import numpy as np
+from sklearn.model_selection import KFold, GridSearchCV
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import LinearRegression, PassiveAggressiveRegressor, Ridge
+import pickle
 
-#plot A->B orders count by time
-trainPath1 = '.\\Data\\train_July.csv'
-trainPath2 = '.\\Data\\train_Aug.csv'
-testPath = '.\\Data\\test_id_Aug_agg_public5k.csv'
+def saveModel(filename,m):
+    pickle.dump({'model':m},open(filename+'.pkl','wb'))
 
-def ReadTrain():
-    train1 = pd.read_csv(trainPath1)
-    train2 = pd.read_csv(trainPath2)
-    return pd.concat([train1,train2])
-
-def ReadTest():
-    return pd.read_csv(testPath)
-
-def analysis(trainSet,testSet):
+def saveResult(filename, yp):
     result = pd.DataFrame()
-    result['test_id'] = testSet['test_id']
-    p=[]
-    for i in range(len(testSet)):
-        if i%500==0:
-            print('%s: %d'%(dt.datetime.now(), i))
-        x = testSet.iloc[i]
-        startId = x['start_geo_id']
-        endId = x['end_geo_id']
-        date = x['create_date']
-        hur = x['create_hour']
-        #Date = dt.datetime.strptime(date,'%Y-%m-%d')
-        #Date.replace(hour=int(hur))
-        tmp = trainSet[(trainSet['start_geo_id']==startId) & (trainSet['end_geo_id']==endId) & (trainSet['create_date']==date)]\
-              .sort_values(['create_date','create_hour'])
-        s = 0
-        if(hur>0):
-            s = s + tmp[tmp['create_hour']==hur-1].shape[0]
-        if(hur<23):
-            s = s + tmp[tmp['create_hour']==hur+1].shape[0]
-        if(hur>0 and hur<23):
-            s = s/2.0;
-        if s==0.5:
-            s=1
-        p.append(s)
-    result['count']=p
-    result.to_csv('prediction.csv',encoding='utf-8',index = False)
+    result['test_id'] = range(5000)
+    result['count']=yp
+    result.to_csv(filename+'.csv',index = False)
 
-if __name__=="__main__":
-    trainSet = ReadTrain()
-    testSet = ReadTest()
-    analysis(trainSet,testSet)
+def GenResult(X,TX):
+    #X = X.groupby('count').apply(stratifiedSampling)
+   # X = X[X['day']<=31]
+    X = X.replace(np.inf,0)
+    TX = TX.replace(np.inf,0)
+    X['spoi'] = X[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
+    X['tpoi'] = X[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+
+    TX['spoi'] = TX[['soil', 'smarket', 'suptown', 'ssubway', 'sbus', 'scaffee', 'schinese', 'satm', 'soffice', 'shotel']].sum(axis = 1)
+    TX['tpoi'] = TX[['toil', 'tmarket', 'tuptown', 'tsubway', 'tbus', 'tcaffee', 'tchinese', 'tatm', 'toffice', 'thotel']].sum(axis = 1)
+
+    featName = ['spoi','tpoi','dist','feels_like0','humidity0','humidity1',\
+                 'hisMean','weekMean',\
+                 'weekday','day','hour']
+    X['residual'] = X['count'] - X['estimate']
+    m = GradientBoostingRegressor(loss='lad',n_estimators = 300,max_depth = 300, learning_rate = 0.1, verbose = 2, min_samples_leaf = 256, min_samples_split = 256)
+    m.fit(X[featName],X['residual'])
+    FileName = 'gbr_300est_300dep_256min_useEst_nomerge'
+    saveModel(FileName,m)
+    modelResult = m.predict(TX[featName]) + TX['estimate']
+    saveResult(FileName,modelResult.values)
+    print(np.mean( modelResult.values ))
+
+def stratifiedSampling(group):
+    if group.name==1:
+        frac = 0.85
+    else:
+        frac = 1
+    return group.sample(frac = frac)
+
+if __name__ == "__main__":
+    Train,Test,Final = SSSet()
+    GenResult(Train,Final)
